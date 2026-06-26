@@ -12,6 +12,12 @@ import { AddUserCurrencyDto } from './dto/add-user-currency.dto';
 import { ReplaceUserCurrenciesDto } from './dto/replace-user-currencies.dto';
 import { UpdateUserCurrencyDto } from './dto/update-user-currency.dto';
 
+type CurrencySelection = {
+  currencyId: number;
+  base: boolean;
+  exchangeRate?: number;
+};
+
 type UserCurrencyWithCurrency = Prisma.UserCurrencyGetPayload<{
   include: { currency: true };
 }>;
@@ -346,7 +352,45 @@ export class CurrenciesService {
     }
   }
 
-  private validateSelectionSet(selections: AddUserCurrencyDto[]): void {
+  async assignCurrenciesToUser(
+    userId: bigint,
+    currencies: CurrencySelection[],
+    tx: Prisma.TransactionClient,
+  ): Promise<void> {
+    if (!currencies || currencies.length === 0) return;
+
+    this.validateSelectionSet(currencies);
+
+    const currencyIds = currencies.map((c) => BigInt(c.currencyId));
+    const foundCurrencies = await tx.currency.findMany({
+      where: { id: { in: currencyIds } },
+    });
+
+    if (foundCurrencies.length !== currencyIds.length) {
+      const foundIds = new Set(foundCurrencies.map((c) => c.id.toString()));
+      const missingIds = currencyIds
+        .filter((id) => !foundIds.has(id.toString()))
+        .map(Number);
+      throw new NotFoundException(
+        `Currencies were not found for ids: ${missingIds.join(', ')}`,
+      );
+    }
+
+    const now = new Date();
+    await tx.userCurrency.createMany({
+      data: currencies.map((sel) => ({
+        userId,
+        currencyId: BigInt(sel.currencyId),
+        exchangeRate: sel.exchangeRate ?? 1,
+        isBase: sel.base,
+        isActive: true,
+        createdAt: now,
+        updatedAt: now,
+      })),
+    });
+  }
+
+  private validateSelectionSet(selections: CurrencySelection[]): void {
     const uniqueIds = new Set<number>();
     let baseCount = 0;
 

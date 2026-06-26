@@ -4,6 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import type { UserCategory } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CategoryType } from '../common/enums';
 import type { CategoryCatalogResponseDto } from './dto/category-catalog-response.dto';
@@ -197,11 +198,12 @@ export class CategoriesService {
     });
   }
 
-  // Used by AuthService during registration (Phase 9)
+  // Called by AuthService during registration; accepts an outer tx for atomicity
   async assignDefaultCategoriesToUser(
     userId: bigint,
     language: string,
     activeCategoryIds?: Set<bigint>,
+    tx?: Prisma.TransactionClient,
   ): Promise<void> {
     const lang = this.resolveLanguage(language);
 
@@ -215,14 +217,13 @@ export class CategoriesService {
     if (sourceCategories.length === 0) return;
 
     const now = new Date();
-    // Maps sourceCategory.id → newly created UserCategory.id
     const cloneMap = new Map<bigint, bigint>();
 
-    await this.prisma.$transaction(async (tx) => {
+    const runWrites = async (db: Prisma.TransactionClient): Promise<void> => {
       // First pass: create all clones without parent links
       for (const source of sourceCategories) {
         const isActive = !activeCategoryIds || activeCategoryIds.has(source.id);
-        const created = await tx.userCategory.create({
+        const created = await db.userCategory.create({
           data: {
             userId,
             name: translationMap.get(source.id) ?? source.name,
@@ -243,14 +244,20 @@ export class CategoriesService {
         if (source.parentId !== null) {
           const clonedParentId = cloneMap.get(source.parentId);
           if (clonedParentId !== undefined) {
-            await tx.userCategory.update({
+            await db.userCategory.update({
               where: { id: cloneMap.get(source.id)! },
               data: { parentId: clonedParentId },
             });
           }
         }
       }
-    });
+    };
+
+    if (tx) {
+      await runWrites(tx);
+    } else {
+      await this.prisma.$transaction(runWrites);
+    }
   }
 
   // ─── Private helpers ────────────────────────────────────────────────────────

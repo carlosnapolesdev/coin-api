@@ -7,6 +7,8 @@ import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { User } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
+import { CategoriesService } from '../categories/categories.service';
+import { CurrenciesService } from '../currencies/currencies.service';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   AuthResponseDto,
@@ -26,6 +28,8 @@ export class AuthService {
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
     private readonly config: ConfigService,
+    private readonly currenciesService: CurrenciesService,
+    private readonly categoriesService: CategoriesService,
   ) {}
 
   async register(dto: RegisterDto): Promise<RegisterResponseDto> {
@@ -54,21 +58,44 @@ export class AuthService {
       }
     }
 
+    const passwordHash = await bcrypt.hash(
+      dto.password,
+      AuthService.BCRYPT_ROUNDS,
+    );
+    const language = this.resolveLanguage(dto.language);
     const now = new Date();
-    const user = await this.prisma.user.create({
-      data: {
-        fullName: dto.fullName.trim(),
-        email: normalizedEmail,
-        username: normalizedUsername,
-        passwordHash: await bcrypt.hash(
-          dto.password,
-          AuthService.BCRYPT_ROUNDS,
-        ),
-        language: this.resolveLanguage(dto.language),
-        isActive: true,
-        createdAt: now,
-        updatedAt: now,
-      },
+
+    const user = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.user.create({
+        data: {
+          fullName: dto.fullName.trim(),
+          email: normalizedEmail,
+          username: normalizedUsername,
+          passwordHash,
+          language,
+          isActive: true,
+          createdAt: now,
+          updatedAt: now,
+        },
+      });
+
+      await this.currenciesService.assignCurrenciesToUser(
+        created.id,
+        dto.currencies,
+        tx,
+      );
+
+      const activeCategoryIds = dto.categoryIds
+        ? new Set(dto.categoryIds.map(BigInt))
+        : undefined;
+      await this.categoriesService.assignDefaultCategoriesToUser(
+        created.id,
+        language,
+        activeCategoryIds,
+        tx,
+      );
+
+      return created;
     });
 
     return this.toRegisterResponse(user);
