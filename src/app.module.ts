@@ -5,6 +5,7 @@ import { AuthModule } from './auth/auth.module';
 import { AccountsModule } from './accounts/accounts.module';
 import { CategoriesModule } from './categories/categories.module';
 import { CurrenciesModule } from './currencies/currencies.module';
+import { TransactionsModule } from './transactions/transactions.module';
 import { envValidationSchema } from './config/env.validation';
 import { PrismaModule } from './prisma/prisma.module';
 
@@ -21,6 +22,7 @@ import { PrismaModule } from './prisma/prisma.module';
     AccountsModule,
     CategoriesModule,
     CurrenciesModule,
+    TransactionsModule,
   ],
 })
 export class AppModule {}
