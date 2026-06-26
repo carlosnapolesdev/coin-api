@@ -1,0 +1,200 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─── ENUMS ────────────────────────────────────────────────────────────────────
+// DB stores these as VARCHAR with CHECK constraints; Prisma uses String.
+// TypeScript enums live in src/common/enums/.
+
+// AccountType values: NO_TYPE | BANK | CASH | ASSET | CREDIT_CARD | LIABILITY | CHECKING | SAVINGS
+// AccountTemplate values: NONE | STANDARD_TRANSACTIONS | INCOME_TRACKING | EXPENSE_TRACKING
+// CategoryType values: INCOME | EXPENSE | TRANSFER
+// TransactionType values: INCOME | EXPENSE | TRANSFER
+// TransactionStatus values: PENDING | CLEARED | VOID
+
+// ─── MODELS ───────────────────────────────────────────────────────────────────
+
+model User {
+  id            BigInt          @id @default(autoincrement())
+  username      String?         @unique(map: "uk_users_username") @db.VarChar(50)
+  email         String?         @unique(map: "uk_users_email") @db.VarChar(150)
+  passwordHash  String?         @map("password_hash") @db.VarChar(255)
+  fullName      String?         @map("full_name") @db.VarChar(100)
+  language      String?         @default("en") @db.VarChar(10)
+  isActive      Boolean?        @map("is_active")
+  createdAt     DateTime?       @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime?       @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  accounts        Account[]
+  transactions    Transaction[]
+  userCategories  UserCategory[]
+  userCurrencies  UserCurrency[]
+
+  @@map("users")
+}
+
+/// This table contains check constraints. Visit https://pris.ly/d/check-constraints for more info.
+model Account {
+  id                        BigInt   @id @default(autoincrement())
+  name                      String   @db.VarChar(100)
+  institution               String?  @db.VarChar(150)
+  type                      String   @default("NO_TYPE") @db.VarChar(20)
+  accountNumber             String?  @map("account_number") @db.VarChar(50)
+  currencyId                BigInt?  @map("currency_id")
+  groupName                 String?  @map("group_name") @db.VarChar(100)
+  startBalance              Decimal? @default(0) @map("start_balance") @db.Decimal(15, 2)
+  notes                     String?
+  icon                      String?  @db.VarChar(50)
+  isClosed                  Boolean? @default(false) @map("is_closed")
+  isActive                  Boolean? @default(true) @map("is_active")
+  defaultTemplate           String   @default("NONE") @map("default_template") @db.VarChar(30)
+  excludeFromAccountSummary Boolean? @default(false) @map("exclude_from_account_summary")
+  outlineIntoSummary        Boolean? @default(false) @map("outline_into_summary")
+  excludeFromBudget         Boolean? @default(false) @map("exclude_from_budget")
+  excludeFromAnyReports     Boolean? @default(false) @map("exclude_from_any_reports")
+  overdraftAt               Decimal? @default(0) @map("overdraft_at") @db.Decimal(15, 2)
+  maximumBalance            Decimal? @default(0) @map("maximum_balance") @db.Decimal(15, 2)
+  checkbook1                Int?     @default(0)
+  checkbook2                Int?     @default(0)
+  userId                    BigInt   @map("user_id")
+  createdAt                 DateTime? @map("created_at") @db.Timestamptz(6)
+  updatedAt                 DateTime? @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  currency     Currency?     @relation(fields: [currencyId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_account_currency")
+  user         User          @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_account_user")
+  transactions Transaction[]
+
+  @@map("accounts")
+}
+
+/// This table contains check constraints. Visit https://pris.ly/d/check-constraints for more info.
+model Category {
+  id        BigInt    @id @default(autoincrement())
+  type      String    @db.VarChar(20)
+  name      String    @db.VarChar(100)
+  icon      String?   @db.VarChar(50)
+  parentId  BigInt?   @map("parent_id")
+  createdAt DateTime? @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime? @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  parent            Category?             @relation("CategoryParent", fields: [parentId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_category_parent")
+  children          Category[]            @relation("CategoryParent")
+  translations      CategoryTranslation[]
+  userCategories    UserCategory[]
+
+  @@map("categories")
+}
+
+model CategoryTranslation {
+  id         BigInt    @id @default(autoincrement())
+  categoryId BigInt    @map("category_id")
+  language   String    @db.VarChar(10)
+  name       String    @db.VarChar(100)
+  createdAt  DateTime? @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime? @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  category Category @relation(fields: [categoryId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_ct_category")
+
+  @@unique([categoryId, language], map: "uq_ct_category_language")
+  @@map("category_translations")
+}
+
+model Currency {
+  id        BigInt    @id @default(autoincrement())
+  code      String    @unique(map: "uk_currencies_code") @db.VarChar(3)
+  name      String    @db.VarChar(120)
+  symbol    String?   @db.VarChar(10)
+  createdAt DateTime? @map("created_at") @db.Timestamptz(6)
+
+  accounts        Account[]
+  userCurrencies  UserCurrency[]
+
+  @@map("currencies")
+}
+
+/// This table contains check constraints. Visit https://pris.ly/d/check-constraints for more info.
+model Transaction {
+  id            BigInt    @id @default(autoincrement())
+  userId        BigInt    @map("user_id")
+  accountId     BigInt    @map("account_id")
+  categoryId    BigInt?   @map("category_id")
+  type          String    @db.VarChar(20)
+  amount        Decimal   @db.Decimal(15, 2)
+  effectiveDate DateTime  @map("effective_date") @db.Date
+  payee         String?   @db.VarChar(255)
+  paymentMethod String?   @map("payment_method") @db.VarChar(100)
+  memo          String?
+  status        String    @default("CLEARED") @db.VarChar(20)
+  tags          String?
+  createdAt     DateTime? @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime? @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  account      Account       @relation(fields: [accountId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_transaction_account")
+  userCategory UserCategory? @relation(fields: [categoryId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_transaction_category")
+  user         User          @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_transaction_user")
+
+  @@index([accountId], map: "idx_transactions_account_id")
+  @@index([effectiveDate], map: "idx_transactions_effective_date")
+  @@index([userId], map: "idx_transactions_user_id")
+  @@map("transactions")
+}
+
+/// This table contains check constraints. Visit https://pris.ly/d/check-constraints for more info.
+model UserCategory {
+  id               BigInt    @id @default(autoincrement())
+  type             String    @db.VarChar(20)
+  name             String    @db.VarChar(100)
+  icon             String?   @db.VarChar(50)
+  isActive         Boolean?  @map("is_active")
+  isCustom         Boolean?  @map("is_custom")
+  parentId         BigInt?   @map("parent_id")
+  sourceCategoryId BigInt?   @map("source_category_id")
+  userId           BigInt    @map("user_id")
+  createdAt        DateTime? @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime? @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  transactions    Transaction[]
+  parent          UserCategory?  @relation("UserCategoryParent", fields: [parentId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_uc_parent_category")
+  children        UserCategory[] @relation("UserCategoryParent")
+  sourceCategory  Category?      @relation(fields: [sourceCategoryId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_uc_source_category")
+  user            User           @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_uc_user_category")
+
+  @@map("user_categories")
+}
+
+model UserCurrency {
+  currencyId   BigInt   @map("currency_id")
+  userId       BigInt   @map("user_id")
+  exchangeRate Decimal? @map("exchange_rate") @db.Decimal(15, 6)
+  isBase       Boolean? @map("is_base")
+  isActive     Boolean? @map("is_active")
+  createdAt    DateTime? @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime? @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  currency Currency @relation(fields: [currencyId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_uc_currency")
+  user     User     @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_uc_user")
+
+  @@id([currencyId, userId])
+  @@map("user_currencies")
+}
+
+model FlywaySchemaHistory {
+  installedRank Int      @id(map: "flyway_schema_history_pk") @map("installed_rank")
+  version       String?  @db.VarChar(50)
+  description   String   @db.VarChar(200)
+  type          String   @db.VarChar(20)
+  script        String   @db.VarChar(1000)
+  checksum      Int?
+  installedBy   String   @map("installed_by") @db.VarChar(100)
+  installedOn   DateTime @default(now()) @map("installed_on") @db.Timestamp(6)
+  executionTime Int      @map("execution_time")
+  success       Boolean
+
+  @@index([success], map: "flyway_schema_history_s_idx")
+  @@ignore
+  @@map("flyway_schema_history")
+}
