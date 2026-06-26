@@ -1,0 +1,26 @@
+services:
+  coin-api:
+    build: .
+    container_name: coin-api
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/coinflow
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRATION_MS: ${JWT_EXPIRATION_MS:-3600000}
+      JWT_REMEMBER_ME_EXPIRATION_MS: ${JWT_REMEMBER_ME_EXPIRATION_MS:-604800000}
+      JWT_ISSUER: ${JWT_ISSUER:-coinflow}
+      CORS_ORIGIN: ${CORS_ORIGIN:-}
+      AAAPIS_TOKEN: ${AAAPIS_TOKEN:-}
+      PORT: 8080
+    networks:
+      - web
+      - backend
+    depends_on:
+      - postgres
+
+networks:
+  web:
+    external: true
+  backend:
+    external: true
