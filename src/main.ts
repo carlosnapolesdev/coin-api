@@ -36,7 +36,10 @@ async function bootstrap() {
           }
         };
         flatten(errors);
-        return new BadRequestException({ message: 'Request validation failed', validationErrors });
+        return new BadRequestException({
+          message: 'Request validation failed',
+          validationErrors,
+        });
       },
     }),
   );
@@ -44,4 +47,4 @@ async function bootstrap() {
   const port = process.env.PORT ?? 8080;
   await app.listen(port);
 }
-bootstrap();
+void bootstrap();

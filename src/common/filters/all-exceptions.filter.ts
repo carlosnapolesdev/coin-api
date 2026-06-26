@@ -42,10 +42,16 @@ export class AllExceptionsFilter implements ExceptionFilter {
           validationErrors = bodyObj.validationErrors as Record<string, string>;
         } else {
           const raw = bodyObj.message;
-          message = typeof raw === 'string' ? raw : (bodyObj.error as string) ?? 'An error occurred';
+          message =
+            typeof raw === 'string'
+              ? raw
+              : ((bodyObj.error as string) ?? 'An error occurred');
         }
       }
-    } else if (exception instanceof Prisma.PrismaClientKnownRequestError && exception.code === 'P2002') {
+    } else if (
+      exception instanceof Prisma.PrismaClientKnownRequestError &&
+      exception.code === 'P2002'
+    ) {
       status = HttpStatus.CONFLICT;
       message = 'The request conflicts with an existing resource';
     } else {
