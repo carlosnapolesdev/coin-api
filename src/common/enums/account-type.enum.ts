@@ -1,0 +1,10 @@
+export enum AccountType {
+  NO_TYPE = 'NO_TYPE',
+  BANK = 'BANK',
+  CASH = 'CASH',
+  ASSET = 'ASSET',
+  CREDIT_CARD = 'CREDIT_CARD',
+  LIABILITY = 'LIABILITY',
+  CHECKING = 'CHECKING',
+  SAVINGS = 'SAVINGS',
+}

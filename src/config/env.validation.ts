@@ -11,5 +11,7 @@ export const envValidationSchema = Joi.object({
   JWT_REMEMBER_ME_EXPIRATION_MS: Joi.number().default(604800000),
   JWT_ISSUER: Joi.string().default('coinflow'),
 
+  CORS_ORIGIN: Joi.string().allow('').default(''),
+
   AAAPIS_TOKEN: Joi.string().allow('').default(''),
 });
