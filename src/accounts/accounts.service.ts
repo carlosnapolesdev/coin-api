@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { AccountTemplate } from '../common/enums/account-template.enum';
 import { AccountType } from '../common/enums/account-type.enum';
+import { TransactionType } from '../common/enums/transaction-type.enum';
 import type { AccountResponseDto } from './dto/account-response.dto';
 import type { CreateAccountDto } from './dto/create-account.dto';
 import type { UpdateAccountDto } from './dto/update-account.dto';
@@ -28,7 +29,10 @@ export class AccountsService {
       include: { currency: true },
       orderBy: { name: 'asc' },
     });
-    return accounts.map((a) => this.toAccountResponse(a));
+    const balanceMap = await this.buildCurrentBalanceMap(accounts);
+    return accounts.map((a) =>
+      this.toAccountResponse(a, balanceMap.get(a.id)!),
+    );
   }
 
   async getAccount(
@@ -36,7 +40,11 @@ export class AccountsService {
     accountId: number,
   ): Promise<AccountResponseDto> {
     const account = await this.findRequiredAccount(userId, accountId);
-    return this.toAccountResponse(account);
+    const currentBalance = await this.computeAccountBalance(
+      account.id,
+      account.startBalance,
+    );
+    return this.toAccountResponse(account, currentBalance);
   }
 
   async createAccount(
@@ -79,7 +87,11 @@ export class AccountsService {
       },
       include: { currency: true },
     });
-    return this.toAccountResponse(account);
+    const currentBalance = await this.computeAccountBalance(
+      account.id,
+      account.startBalance,
+    );
+    return this.toAccountResponse(account, currentBalance);
   }
 
   async updateAccount(
@@ -129,7 +141,11 @@ export class AccountsService {
       data,
       include: { currency: true },
     });
-    return this.toAccountResponse(updated);
+    const currentBalance = await this.computeAccountBalance(
+      updated.id,
+      updated.startBalance,
+    );
+    return this.toAccountResponse(updated, currentBalance);
   }
 
   async deleteAccount(userId: number, accountId: number): Promise<void> {
@@ -174,7 +190,62 @@ export class AccountsService {
     }
   }
 
-  private toAccountResponse(account: AccountWithCurrency): AccountResponseDto {
+  private async buildCurrentBalanceMap(
+    accounts: AccountWithCurrency[],
+  ): Promise<Map<bigint, Prisma.Decimal>> {
+    const map = new Map<bigint, Prisma.Decimal>();
+    for (const a of accounts) {
+      map.set(a.id, a.startBalance ?? new Prisma.Decimal(0));
+    }
+
+    if (accounts.length === 0) return map;
+
+    const txSums = await this.prisma.transaction.groupBy({
+      by: ['accountId', 'type'],
+      where: { accountId: { in: accounts.map((a) => a.id) } },
+      _sum: { amount: true },
+    });
+
+    for (const row of txSums) {
+      const current = map.get(row.accountId) ?? new Prisma.Decimal(0);
+      const amt = row._sum.amount ?? new Prisma.Decimal(0);
+      if ((row.type as string) === (TransactionType.INCOME as string)) {
+        map.set(row.accountId, current.add(amt));
+      } else {
+        map.set(row.accountId, current.sub(amt));
+      }
+    }
+
+    return map;
+  }
+
+  private async computeAccountBalance(
+    accountId: bigint,
+    startBalance: Prisma.Decimal | null,
+  ): Promise<Prisma.Decimal> {
+    const txSums = await this.prisma.transaction.groupBy({
+      by: ['type'],
+      where: { accountId },
+      _sum: { amount: true },
+    });
+
+    let balance = startBalance ?? new Prisma.Decimal(0);
+    for (const row of txSums) {
+      const amt = row._sum.amount ?? new Prisma.Decimal(0);
+      if ((row.type as string) === (TransactionType.INCOME as string)) {
+        balance = balance.add(amt);
+      } else {
+        balance = balance.sub(amt);
+      }
+    }
+
+    return balance;
+  }
+
+  private toAccountResponse(
+    account: AccountWithCurrency,
+    currentBalance: Prisma.Decimal,
+  ): AccountResponseDto {
     const c = account.currency;
     return {
       id: Number(account.id),
@@ -187,6 +258,7 @@ export class AccountsService {
       currencySymbol: c ? c.symbol : null,
       groupName: account.groupName,
       startBalance: account.startBalance?.toNumber() ?? 0,
+      currentBalance: currentBalance.toNumber(),
       notes: account.notes,
       icon: account.icon,
       closed: account.isClosed ?? false,
