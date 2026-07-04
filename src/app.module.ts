@@ -10,6 +10,7 @@ import { CurrenciesModule } from './currencies/currencies.module';
 import { TransactionsModule } from './transactions/transactions.module';
 import { BudgetsModule } from './budgets/budgets.module';
 import { ReportsModule } from './reports/reports.module';
+import { RecurringModule } from './recurring/recurring.module';
 import { HealthModule } from './health/health.module';
 import { envValidationSchema } from './config/env.validation';
 import { PrismaModule } from './prisma/prisma.module';
@@ -42,6 +43,7 @@ import { MailModule } from './mail/mail.module';
     TransactionsModule,
     BudgetsModule,
     ReportsModule,
+    RecurringModule,
     HealthModule,
   ],
 })

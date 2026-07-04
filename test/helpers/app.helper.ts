@@ -113,6 +113,7 @@ export async function cleanupUser(
 
   const userId = user.id;
 
+  await prisma.recurringTransaction.deleteMany({ where: { userId } });
   await prisma.transaction.deleteMany({
     where: { account: { userId } },
   });

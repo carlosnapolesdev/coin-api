@@ -34,7 +34,10 @@ describe('Users (e2e)', () => {
         .send({ fullName: 'Updated Name', language: 'es' });
 
       expect(res.status).toBe(200);
-      expect(res.body).toMatchObject({ fullName: 'Updated Name', language: 'es' });
+      expect(res.body).toMatchObject({
+        fullName: 'Updated Name',
+        language: 'es',
+      });
     });
 
     it('401 - no token', async () => {
