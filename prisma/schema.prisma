@@ -33,6 +33,7 @@ model User {
   transactions    Transaction[]
   userCategories  UserCategory[]
   userCurrencies  UserCurrency[]
+  budgets         Budget[]
 
   @@map("users")
 }
@@ -166,8 +167,28 @@ model UserCategory {
   children        UserCategory[] @relation("UserCategoryParent")
   sourceCategory  Category?      @relation(fields: [sourceCategoryId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_uc_source_category")
   user            User           @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_uc_user_category")
+  budgets         Budget[]
 
   @@map("user_categories")
+}
+
+model Budget {
+  id         BigInt    @id @default(autoincrement())
+  userId     BigInt    @map("user_id")
+  categoryId BigInt    @map("category_id")
+  amount     Decimal   @db.Decimal(15, 2)
+  period     String    @default("MONTHLY") @db.VarChar(20)
+  startDate  DateTime  @map("start_date") @db.Date
+  isActive   Boolean?  @default(true) @map("is_active")
+  createdAt  DateTime? @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime? @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  user     User         @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_budget_user")
+  category UserCategory @relation(fields: [categoryId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_budget_category")
+
+  @@unique([userId, categoryId, period], map: "uq_budget_user_category_period")
+  @@index([userId], map: "idx_budgets_user_id")
+  @@map("budgets")
 }
 
 model UserCurrency {
