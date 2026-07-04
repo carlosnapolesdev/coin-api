@@ -9,6 +9,7 @@ import {
 } from '@nestjs/common';
 import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import { CurrentUser, Public } from '../common/decorators';
+import { ForgotPasswordDto, ResetPasswordDto } from '../users/dto';
 import { AuthService } from './auth.service';
 import type {
   AuthResponseDto,
@@ -44,5 +45,23 @@ export class AuthController {
   @Get('me')
   me(@CurrentUser() user: AuthenticatedUser): UserProfileDto {
     return this.authService.getProfile(user);
+  }
+
+  @Post('forgot-password')
+  @Public()
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(ThrottlerGuard)
+  @Throttle({ default: { limit: 3, ttl: 60000 } })
+  async forgotPassword(@Body() dto: ForgotPasswordDto): Promise<void> {
+    return this.authService.forgotPassword(dto);
+  }
+
+  @Post('reset-password')
+  @Public()
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(ThrottlerGuard)
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
+  async resetPassword(@Body() dto: ResetPasswordDto): Promise<void> {
+    return this.authService.resetPassword(dto);
   }
 }

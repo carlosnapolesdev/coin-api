@@ -1,3 +1,4 @@
+import * as crypto from 'node:crypto';
 import request from 'supertest';
 import {
   cleanupUser,
@@ -142,6 +143,64 @@ describe('Auth (e2e)', () => {
         .get('/api/auth/me')
         .set('Authorization', 'Bearer invalid.token.here');
       expect(res.status).toBe(401);
+    });
+  });
+
+  describe('POST /api/auth/forgot-password + POST /api/auth/reset-password', () => {
+    it('200 - always returns OK, even for an unknown email (no enumeration)', async () => {
+      const res = await request(ctx.server)
+        .post('/api/auth/forgot-password')
+        .send({ email: 'ghost@test.coinflow' });
+
+      expect(res.status).toBe(200);
+    });
+
+    it('resets the password with the token issued for a known email, then logs in with it', async () => {
+      const forgotRes = await request(ctx.server)
+        .post('/api/auth/forgot-password')
+        .send({ email });
+      expect(forgotRes.status).toBe(200);
+
+      const user = await ctx.prisma.user.findFirstOrThrow({
+        where: { email },
+      });
+      const tokenRow = await ctx.prisma.passwordResetToken.findFirstOrThrow({
+        where: { userId: user.id, usedAt: null },
+        orderBy: { id: 'desc' },
+      });
+
+      // The raw token is only known to the mail transport (logged, not persisted);
+      // for this e2e we mint one with a matching hash so we can drive the endpoint.
+      const rawToken = 'e2e-raw-token';
+      await ctx.prisma.passwordResetToken.update({
+        where: { id: tokenRow.id },
+        data: {
+          tokenHash: crypto.createHash('sha256').update(rawToken).digest('hex'),
+        },
+      });
+
+      const resetRes = await request(ctx.server)
+        .post('/api/auth/reset-password')
+        .send({ token: rawToken, newPassword: 'NewPass1' });
+      expect(resetRes.status).toBe(200);
+
+      const loginRes = await request(ctx.server)
+        .post('/api/auth/login')
+        .send({ identifier: email, password: 'NewPass1' });
+      expect(loginRes.status).toBe(200);
+
+      // token cannot be reused
+      const reuseRes = await request(ctx.server)
+        .post('/api/auth/reset-password')
+        .send({ token: rawToken, newPassword: 'AnotherPass1' });
+      expect(reuseRes.status).toBe(400);
+    });
+
+    it('400 - unknown token', async () => {
+      const res = await request(ctx.server)
+        .post('/api/auth/reset-password')
+        .send({ token: 'not-a-real-token', newPassword: 'NewPass1' });
+      expect(res.status).toBe(400);
     });
   });
 });

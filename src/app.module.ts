@@ -3,6 +3,7 @@ import { ConfigModule } from '@nestjs/config';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { LoggerModule } from 'nestjs-pino';
 import { AuthModule } from './auth/auth.module';
+import { UsersModule } from './users/users.module';
 import { AccountsModule } from './accounts/accounts.module';
 import { CategoriesModule } from './categories/categories.module';
 import { CurrenciesModule } from './currencies/currencies.module';
@@ -12,6 +13,7 @@ import { ReportsModule } from './reports/reports.module';
 import { HealthModule } from './health/health.module';
 import { envValidationSchema } from './config/env.validation';
 import { PrismaModule } from './prisma/prisma.module';
+import { MailModule } from './mail/mail.module';
 
 @Module({
   imports: [
@@ -31,7 +33,9 @@ import { PrismaModule } from './prisma/prisma.module';
     }),
     ThrottlerModule.forRoot([{ ttl: 60000, limit: 100 }]),
     PrismaModule,
+    MailModule,
     AuthModule,
+    UsersModule,
     AccountsModule,
     CategoriesModule,
     CurrenciesModule,

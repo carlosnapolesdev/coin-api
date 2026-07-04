@@ -15,5 +15,7 @@ export const envValidationSchema = Joi.object({
 
   CORS_ORIGIN: Joi.string().allow('').default(''),
 
+  APP_URL: Joi.string().allow('').default(''),
+
   AAAPIS_TOKEN: Joi.string().allow('').default(''),
 });

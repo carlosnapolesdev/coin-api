@@ -121,5 +121,6 @@ export async function cleanupUser(
   await prisma.$executeRaw`UPDATE user_categories SET parent_id = NULL WHERE user_id = ${userId}`;
   await prisma.userCategory.deleteMany({ where: { userId } });
   await prisma.userCurrency.deleteMany({ where: { userId } });
+  await prisma.passwordResetToken.deleteMany({ where: { userId } });
   await prisma.user.delete({ where: { id: userId } });
 }
