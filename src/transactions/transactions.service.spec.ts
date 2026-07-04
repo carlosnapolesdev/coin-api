@@ -97,6 +97,7 @@ describe('TransactionsService', () => {
     transaction: {
       findMany: jest.fn(),
       findFirst: jest.fn(),
+      count: jest.fn(),
       create: jest.fn(),
       update: jest.fn(),
       delete: jest.fn(),
@@ -426,7 +427,9 @@ describe('TransactionsService', () => {
         amount: 50,
         accountId: BigInt(2),
       });
-      mockPrisma.$transaction.mockImplementation((cb) => cb(mockPrisma));
+      mockPrisma.$transaction.mockImplementation(
+        (cb: (tx: typeof mockPrisma) => unknown) => cb(mockPrisma),
+      );
       mockPrisma.transaction.create
         .mockResolvedValueOnce(sourceLeg)
         .mockResolvedValueOnce(destinationLeg);
@@ -464,7 +467,10 @@ describe('TransactionsService', () => {
       );
 
       await expect(
-        service.createTransaction(1, { ...transferDto, destinationAccountId: undefined }),
+        service.createTransaction(1, {
+          ...transferDto,
+          destinationAccountId: undefined,
+        }),
       ).rejects.toThrow('Destination account is required for a transfer');
     });
 
@@ -475,7 +481,10 @@ describe('TransactionsService', () => {
       );
 
       await expect(
-        service.createTransaction(1, { ...transferDto, destinationAccountId: 1 }),
+        service.createTransaction(1, {
+          ...transferDto,
+          destinationAccountId: 1,
+        }),
       ).rejects.toThrow('Source and destination accounts must differ');
     });
 
@@ -555,6 +564,47 @@ describe('TransactionsService', () => {
         where: { transferGroupId: 'grp', userId: BigInt(1) },
       });
       expect(mockPrisma.transaction.delete).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('searchTransactions', () => {
+    it('builds a where filter and returns a paginated envelope', async () => {
+      userExists();
+      mockPrisma.$transaction.mockImplementation((arg: unknown) =>
+        Array.isArray(arg)
+          ? Promise.all(arg)
+          : (arg as (tx: unknown) => unknown)(mockPrisma),
+      );
+      mockPrisma.transaction.count.mockResolvedValue(1);
+      mockPrisma.transaction.findMany.mockResolvedValue([
+        makeTransaction(BigInt(5), {
+          type: TransactionType.EXPENSE,
+          amount: 20,
+        }),
+      ]);
+
+      const res = await service.searchTransactions(1, {
+        q: 'store',
+        type: TransactionType.EXPENSE,
+        page: 1,
+        pageSize: 25,
+      });
+
+      expect(res.total).toBe(1);
+      expect(res.page).toBe(1);
+      expect(res.pageSize).toBe(25);
+      expect(res.data).toHaveLength(1);
+      const whereArg = mockPrisma.transaction.findMany.mock.calls[0][0].where;
+      expect(whereArg.type).toBe('EXPENSE');
+      expect(whereArg.OR).toBeDefined();
+    });
+
+    it('throws NotFoundException when the user does not exist', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue(null);
+
+      await expect(service.searchTransactions(1, {})).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 

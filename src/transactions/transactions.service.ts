@@ -10,6 +10,8 @@ import { TransactionStatus, TransactionType } from '../common/enums';
 import type { TransactionResponseDto } from './dto/transaction-response.dto';
 import type { CreateTransactionDto } from './dto/create-transaction.dto';
 import type { UpdateTransactionDto } from './dto/update-transaction.dto';
+import type { QueryTransactionsDto } from './dto/query-transactions.dto';
+import type { PaginatedResponse } from '../common/dto';
 
 type TransactionWithRelations = Prisma.TransactionGetPayload<{
   include: { account: true; userCategory: true };
@@ -58,6 +60,62 @@ export class TransactionsService {
       orderBy: [{ effectiveDate: 'desc' }, { id: 'desc' }],
     });
     return transactions.map((t) => this.toResponse(t, null));
+  }
+
+  async searchTransactions(
+    userId: number,
+    query: QueryTransactionsDto,
+  ): Promise<PaginatedResponse<TransactionResponseDto>> {
+    await this.ensureUserExists(userId);
+
+    const page = query.page ?? 1;
+    const pageSize = query.pageSize ?? 25;
+
+    const where: Prisma.TransactionWhereInput = { userId: BigInt(userId) };
+    if (query.accountId !== undefined)
+      where.accountId = BigInt(query.accountId);
+    if (query.categoryId !== undefined)
+      where.categoryId = BigInt(query.categoryId);
+    if (query.type !== undefined) where.type = query.type;
+    if (query.status !== undefined) where.status = query.status;
+    if (query.from !== undefined || query.to !== undefined) {
+      where.effectiveDate = {};
+      if (query.from) where.effectiveDate.gte = new Date(query.from);
+      if (query.to) where.effectiveDate.lte = new Date(query.to);
+    }
+    if (query.minAmount !== undefined || query.maxAmount !== undefined) {
+      where.amount = {};
+      if (query.minAmount !== undefined)
+        where.amount.gte = new Prisma.Decimal(query.minAmount);
+      if (query.maxAmount !== undefined)
+        where.amount.lte = new Prisma.Decimal(query.maxAmount);
+    }
+    if (query.q) {
+      const q = query.q;
+      where.OR = [
+        { payee: { contains: q, mode: 'insensitive' } },
+        { memo: { contains: q, mode: 'insensitive' } },
+        { tags: { contains: q, mode: 'insensitive' } },
+      ];
+    }
+
+    const [total, rows] = await this.prisma.$transaction([
+      this.prisma.transaction.count({ where }),
+      this.prisma.transaction.findMany({
+        where,
+        include: { account: true, userCategory: true },
+        orderBy: [{ effectiveDate: 'desc' }, { id: 'desc' }],
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+    ]);
+
+    return {
+      data: rows.map((t) => this.toResponse(t, null)),
+      total,
+      page,
+      pageSize,
+    };
   }
 
   async getTransaction(
@@ -269,7 +327,9 @@ export class TransactionsService {
       memo: t.memo,
       status: (t.status as TransactionStatus) ?? TransactionStatus.CLEARED,
       tags: t.tags,
-      transferAccountId: t.transferAccountId ? Number(t.transferAccountId) : null,
+      transferAccountId: t.transferAccountId
+        ? Number(t.transferAccountId)
+        : null,
       transferIn: t.transferIn ?? null,
       balance: balance !== null ? balance.toNumber() : null,
       createdAt: t.createdAt,

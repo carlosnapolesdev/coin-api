@@ -14,8 +14,13 @@ import {
 import { CurrentUser } from '../common/decorators';
 import type { AuthenticatedUser } from '../auth/strategies/jwt.strategy';
 import { TransactionsService } from './transactions.service';
-import { CreateTransactionDto, UpdateTransactionDto } from './dto';
+import {
+  CreateTransactionDto,
+  QueryTransactionsDto,
+  UpdateTransactionDto,
+} from './dto';
 import type { TransactionResponseDto } from './dto';
+import type { PaginatedResponse } from '../common/dto';
 
 @Controller('users/me/transactions')
 export class TransactionsController {
@@ -35,6 +40,14 @@ export class TransactionsController {
       from,
       to,
     );
+  }
+
+  @Get('search')
+  searchTransactions(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query() query: QueryTransactionsDto,
+  ): Promise<PaginatedResponse<TransactionResponseDto>> {
+    return this.transactionsService.searchTransactions(user.id, query);
   }
 
   @Get(':transactionId')

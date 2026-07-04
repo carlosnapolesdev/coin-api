@@ -224,6 +224,62 @@ describe('Transactions (e2e)', () => {
     });
   });
 
+  describe('GET /api/users/me/transactions/search', () => {
+    beforeAll(async () => {
+      await request(ctx.server)
+        .post('/api/users/me/transactions')
+        .set(auth())
+        .send({
+          accountId,
+          categoryId,
+          type: 'EXPENSE',
+          amount: 42,
+          effectiveDate: '2026-03-01',
+          payee: 'Searchable Grocery Store',
+        });
+    });
+
+    it('200 - paginates and filters by type', async () => {
+      const res = await request(ctx.server)
+        .get(
+          '/api/users/me/transactions/search?type=EXPENSE&page=1&pageSize=10',
+        )
+        .set(auth());
+
+      expect(res.status).toBe(200);
+      expect(res.body).toHaveProperty('total');
+      expect(res.body).toHaveProperty('page', 1);
+      expect(res.body).toHaveProperty('pageSize', 10);
+      expect(Array.isArray(res.body.data)).toBe(true);
+      expect(
+        (res.body.data as Array<{ type: string }>).every(
+          (t) => t.type === 'EXPENSE',
+        ),
+      ).toBe(true);
+    });
+
+    it('200 - filters by text search across payee', async () => {
+      const res = await request(ctx.server)
+        .get('/api/users/me/transactions/search?q=Searchable Grocery')
+        .set(auth());
+
+      expect(res.status).toBe(200);
+      expect(
+        (res.body.data as Array<{ payee: string | null }>).some((t) =>
+          t.payee?.includes('Searchable Grocery'),
+        ),
+      ).toBe(true);
+    });
+
+    it('401 - no token', async () => {
+      const res = await request(ctx.server).get(
+        '/api/users/me/transactions/search',
+      );
+
+      expect(res.status).toBe(401);
+    });
+  });
+
   describe('Transfers', () => {
     let accountA: number;
     let accountB: number;

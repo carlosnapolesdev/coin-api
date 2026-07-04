@@ -209,7 +209,7 @@ export class AccountsService {
     for (const row of txSums) {
       const current = map.get(row.accountId) ?? new Prisma.Decimal(0);
       const amt = row._sum.amount ?? new Prisma.Decimal(0);
-      if ((row.type as string) === (TransactionType.INCOME as string)) {
+      if (row.type === (TransactionType.INCOME as string)) {
         map.set(row.accountId, current.add(amt));
       } else {
         map.set(row.accountId, current.sub(amt));
@@ -232,7 +232,7 @@ export class AccountsService {
     let balance = startBalance ?? new Prisma.Decimal(0);
     for (const row of txSums) {
       const amt = row._sum.amount ?? new Prisma.Decimal(0);
-      if ((row.type as string) === (TransactionType.INCOME as string)) {
+      if (row.type === (TransactionType.INCOME as string)) {
         balance = balance.add(amt);
       } else {
         balance = balance.sub(amt);
