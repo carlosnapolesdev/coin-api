@@ -25,6 +25,12 @@ export class CreateTransactionDto {
   @Min(1)
   categoryId?: number;
 
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  destinationAccountId?: number;
+
   @IsNotEmpty({ message: 'Transaction type is required' })
   @IsEnum(TransactionType)
   type: TransactionType;

@@ -223,4 +223,95 @@ describe('Transactions (e2e)', () => {
       expect(res.status).toBe(404);
     });
   });
+
+  describe('Transfers', () => {
+    let accountA: number;
+    let accountB: number;
+
+    beforeAll(async () => {
+      const resA = await request(ctx.server)
+        .post('/api/users/me/accounts')
+        .set(auth())
+        .send({ name: 'Transfer A', currencyId, startBalance: 0 });
+      accountA = resA.body.id as number;
+
+      const resB = await request(ctx.server)
+        .post('/api/users/me/accounts')
+        .set(auth())
+        .send({ name: 'Transfer B', currencyId, startBalance: 0 });
+      accountB = resB.body.id as number;
+    });
+
+    it('201 - moves money between accounts via a transfer', async () => {
+      const res = await request(ctx.server)
+        .post('/api/users/me/transactions')
+        .set(auth())
+        .send({
+          accountId: accountA,
+          destinationAccountId: accountB,
+          type: 'TRANSFER',
+          amount: 50,
+          effectiveDate: '2026-02-01',
+        });
+
+      expect(res.status).toBe(201);
+      expect(res.body).toMatchObject({
+        type: 'TRANSFER',
+        accountId: accountA,
+        transferAccountId: accountB,
+        transferIn: false,
+      });
+
+      const src = await request(ctx.server)
+        .get(`/api/users/me/transactions?accountId=${accountA}`)
+        .set(auth());
+      const dst = await request(ctx.server)
+        .get(`/api/users/me/transactions?accountId=${accountB}`)
+        .set(auth());
+
+      expect(src.body[0].balance).toBe(-50);
+      expect(dst.body[0].balance).toBe(50);
+    });
+
+    it('400 - rejects a transfer without destinationAccountId', async () => {
+      const res = await request(ctx.server)
+        .post('/api/users/me/transactions')
+        .set(auth())
+        .send({
+          accountId: accountA,
+          type: 'TRANSFER',
+          amount: 10,
+          effectiveDate: '2026-02-01',
+        });
+
+      expect(res.status).toBe(400);
+    });
+
+    it('204 - deletes both legs of a transfer', async () => {
+      const createRes = await request(ctx.server)
+        .post('/api/users/me/transactions')
+        .set(auth())
+        .send({
+          accountId: accountA,
+          destinationAccountId: accountB,
+          type: 'TRANSFER',
+          amount: 20,
+          effectiveDate: '2026-02-02',
+        });
+      const sourceId = createRes.body.id as number;
+
+      const delRes = await request(ctx.server)
+        .delete(`/api/users/me/transactions/${sourceId}`)
+        .set(auth());
+      expect(delRes.status).toBe(204);
+
+      const dst = await request(ctx.server)
+        .get(`/api/users/me/transactions?accountId=${accountB}`)
+        .set(auth());
+      const remaining = (dst.body as Array<{ amount: number }>).filter(
+        (t) => t.amount === 20,
+      );
+      expect(remaining.length).toBe(0);
+    });
+  });
 });

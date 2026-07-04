@@ -100,7 +100,9 @@ describe('TransactionsService', () => {
       create: jest.fn(),
       update: jest.fn(),
       delete: jest.fn(),
+      deleteMany: jest.fn(),
     },
+    $transaction: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -181,6 +183,27 @@ describe('TransactionsService', () => {
       const result = await service.getUserTransactions(1, 1);
 
       expect(result[0].balance).toBe(450);
+    });
+
+    it('adds the incoming transfer leg to the running balance', async () => {
+      userExists();
+      mockPrisma.account.findFirst.mockResolvedValue(
+        makeAccount(BigInt(2), { startBalance: 100 }),
+      );
+      mockPrisma.transaction.findMany.mockResolvedValue([
+        {
+          ...makeTransaction(BigInt(11), {
+            type: TransactionType.TRANSFER,
+            amount: 50,
+            accountId: BigInt(2),
+          }),
+          transferIn: true,
+        },
+      ]);
+
+      const result = await service.getUserTransactions(1, 2);
+
+      expect(result[0].balance).toBe(150);
     });
 
     it('returns transactions in descending order with correct per-transaction balance', async () => {
@@ -379,6 +402,95 @@ describe('TransactionsService', () => {
     });
   });
 
+  describe('createTransaction — TRANSFER', () => {
+    const transferDto: CreateTransactionDto = {
+      accountId: 1,
+      destinationAccountId: 2,
+      type: TransactionType.TRANSFER,
+      amount: 50,
+      effectiveDate: '2024-03-10',
+    };
+
+    it('creates a linked pair for a TRANSFER and returns the source leg', async () => {
+      userExists();
+      mockPrisma.account.findFirst
+        .mockResolvedValueOnce(makeAccount(BigInt(1), { startBalance: 0 }))
+        .mockResolvedValueOnce(makeAccount(BigInt(2), { startBalance: 0 }));
+      const sourceLeg = makeTransaction(BigInt(10), {
+        type: TransactionType.TRANSFER,
+        amount: 50,
+        accountId: BigInt(1),
+      });
+      const destinationLeg = makeTransaction(BigInt(11), {
+        type: TransactionType.TRANSFER,
+        amount: 50,
+        accountId: BigInt(2),
+      });
+      mockPrisma.$transaction.mockImplementation((cb) => cb(mockPrisma));
+      mockPrisma.transaction.create
+        .mockResolvedValueOnce(sourceLeg)
+        .mockResolvedValueOnce(destinationLeg);
+
+      const result = await service.createTransaction(1, transferDto);
+
+      expect(mockPrisma.transaction.create).toHaveBeenCalledTimes(2);
+      expect(mockPrisma.transaction.create.mock.calls[0][0].data).toEqual(
+        expect.objectContaining({
+          accountId: BigInt(1),
+          transferAccountId: BigInt(2),
+          transferIn: false,
+        }),
+      );
+      expect(mockPrisma.transaction.create.mock.calls[1][0].data).toEqual(
+        expect.objectContaining({
+          accountId: BigInt(2),
+          transferAccountId: BigInt(1),
+          transferIn: true,
+        }),
+      );
+      expect(
+        mockPrisma.transaction.create.mock.calls[0][0].data.transferGroupId,
+      ).toBe(
+        mockPrisma.transaction.create.mock.calls[1][0].data.transferGroupId,
+      );
+      expect(result.type).toBe(TransactionType.TRANSFER);
+      expect(result.accountId).toBe(1);
+    });
+
+    it('rejects a TRANSFER without destinationAccountId', async () => {
+      userExists();
+      mockPrisma.account.findFirst.mockResolvedValue(
+        makeAccount(BigInt(1), { startBalance: 0 }),
+      );
+
+      await expect(
+        service.createTransaction(1, { ...transferDto, destinationAccountId: undefined }),
+      ).rejects.toThrow('Destination account is required for a transfer');
+    });
+
+    it('rejects a TRANSFER to the same account', async () => {
+      userExists();
+      mockPrisma.account.findFirst.mockResolvedValue(
+        makeAccount(BigInt(1), { startBalance: 0 }),
+      );
+
+      await expect(
+        service.createTransaction(1, { ...transferDto, destinationAccountId: 1 }),
+      ).rejects.toThrow('Source and destination accounts must differ');
+    });
+
+    it('throws NotFoundException when destination account does not belong to user', async () => {
+      userExists();
+      mockPrisma.account.findFirst
+        .mockResolvedValueOnce(makeAccount(BigInt(1), { startBalance: 0 }))
+        .mockResolvedValueOnce(null);
+
+      await expect(service.createTransaction(1, transferDto)).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+  });
+
   describe('updateTransaction', () => {
     it('updates only the provided fields', async () => {
       const existingTx = makeTransaction(BigInt(5));
@@ -428,6 +540,21 @@ describe('TransactionsService', () => {
       await expect(service.deleteTransaction(1, 99)).rejects.toThrow(
         NotFoundException,
       );
+    });
+
+    it('deletes both legs when deleting a transfer', async () => {
+      mockPrisma.transaction.findFirst.mockResolvedValue({
+        ...makeTransaction(BigInt(10), { type: TransactionType.TRANSFER }),
+        transferGroupId: 'grp',
+      });
+      mockPrisma.transaction.deleteMany.mockResolvedValue({ count: 2 });
+
+      await service.deleteTransaction(1, 10);
+
+      expect(mockPrisma.transaction.deleteMany).toHaveBeenCalledWith({
+        where: { transferGroupId: 'grp', userId: BigInt(1) },
+      });
+      expect(mockPrisma.transaction.delete).not.toHaveBeenCalled();
     });
   });
 

@@ -130,6 +130,9 @@ model Transaction {
   memo          String?
   status        String    @default("CLEARED") @db.VarChar(20)
   tags          String?
+  transferGroupId   String?   @map("transfer_group_id") @db.Uuid
+  transferAccountId BigInt?   @map("transfer_account_id")
+  transferIn        Boolean?  @map("transfer_in")
   createdAt     DateTime? @map("created_at") @db.Timestamptz(6)
   updatedAt     DateTime? @updatedAt @map("updated_at") @db.Timestamptz(6)
 
@@ -140,6 +143,7 @@ model Transaction {
   @@index([accountId], map: "idx_transactions_account_id")
   @@index([effectiveDate], map: "idx_transactions_effective_date")
   @@index([userId], map: "idx_transactions_user_id")
+  @@index([transferGroupId], map: "idx_transactions_transfer_group_id")
   @@map("transactions")
 }
 

@@ -1,4 +1,9 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { TransactionStatus, TransactionType } from '../common/enums';
@@ -73,6 +78,10 @@ export class TransactionsService {
     await this.ensureUserExists(userId);
     await this.findRequiredAccount(userId, dto.accountId);
 
+    if (dto.type === TransactionType.TRANSFER) {
+      return this.createTransfer(userId, dto);
+    }
+
     if (dto.categoryId !== undefined) {
       await this.findRequiredCategory(userId, dto.categoryId);
     }
@@ -98,6 +107,65 @@ export class TransactionsService {
       include: { account: true, userCategory: true },
     });
     return this.toResponse(transaction, null);
+  }
+
+  private async createTransfer(
+    userId: number,
+    dto: CreateTransactionDto,
+  ): Promise<TransactionResponseDto> {
+    if (dto.destinationAccountId === undefined) {
+      throw new BadRequestException(
+        'Destination account is required for a transfer',
+      );
+    }
+    if (dto.destinationAccountId === dto.accountId) {
+      throw new BadRequestException(
+        'Source and destination accounts must differ',
+      );
+    }
+    await this.findRequiredAccount(userId, dto.destinationAccountId);
+
+    const groupId = randomUUID();
+    const now = new Date();
+    const base = {
+      userId: BigInt(userId),
+      categoryId: null,
+      type: TransactionType.TRANSFER,
+      amount: new Prisma.Decimal(dto.amount),
+      effectiveDate: new Date(dto.effectiveDate),
+      payee: dto.payee ?? null,
+      paymentMethod: dto.paymentMethod ?? null,
+      memo: dto.memo ?? null,
+      status: dto.status ?? TransactionStatus.CLEARED,
+      tags: dto.tags ?? null,
+      transferGroupId: groupId,
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    const source = await this.prisma.$transaction(async (tx) => {
+      const out = await tx.transaction.create({
+        data: {
+          ...base,
+          accountId: BigInt(dto.accountId),
+          transferAccountId: BigInt(dto.destinationAccountId as number),
+          transferIn: false,
+        },
+        include: { account: true, userCategory: true },
+      });
+      await tx.transaction.create({
+        data: {
+          ...base,
+          accountId: BigInt(dto.destinationAccountId as number),
+          transferAccountId: BigInt(dto.accountId),
+          transferIn: true,
+        },
+        include: { account: true, userCategory: true },
+      });
+      return out;
+    });
+
+    return this.toResponse(source, null);
   }
 
   async updateTransaction(
@@ -144,7 +212,19 @@ export class TransactionsService {
     userId: number,
     transactionId: number,
   ): Promise<void> {
-    await this.findRequiredTransaction(userId, transactionId);
+    const transaction = await this.findRequiredTransaction(
+      userId,
+      transactionId,
+    );
+    if (transaction.transferGroupId) {
+      await this.prisma.transaction.deleteMany({
+        where: {
+          transferGroupId: transaction.transferGroupId,
+          userId: BigInt(userId),
+        },
+      });
+      return;
+    }
     await this.prisma.transaction.delete({
       where: { id: BigInt(transactionId) },
     });
@@ -158,11 +238,11 @@ export class TransactionsService {
     const result: TransactionResponseDto[] = [];
 
     for (const t of transactions) {
-      if (t.type === (TransactionType.INCOME as string)) {
-        running = running.add(t.amount);
-      } else {
-        running = running.sub(t.amount);
-      }
+      const isInflow =
+        t.type === (TransactionType.INCOME as string) ||
+        (t.type === (TransactionType.TRANSFER as string) &&
+          t.transferIn === true);
+      running = isInflow ? running.add(t.amount) : running.sub(t.amount);
       result.push(this.toResponse(t, running));
     }
 
@@ -189,6 +269,8 @@ export class TransactionsService {
       memo: t.memo,
       status: (t.status as TransactionStatus) ?? TransactionStatus.CLEARED,
       tags: t.tags,
+      transferAccountId: t.transferAccountId ? Number(t.transferAccountId) : null,
+      transferIn: t.transferIn ?? null,
       balance: balance !== null ? balance.toNumber() : null,
       createdAt: t.createdAt,
       updatedAt: t.updatedAt,

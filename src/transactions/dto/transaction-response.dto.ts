@@ -14,6 +14,8 @@ export interface TransactionResponseDto {
   memo: string | null;
   status: TransactionStatus;
   tags: string | null;
+  transferAccountId: number | null;
+  transferIn: boolean | null;
   balance: number | null;
   createdAt: Date | null;
   updatedAt: Date | null;
