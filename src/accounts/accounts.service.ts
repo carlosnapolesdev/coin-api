@@ -1,11 +1,13 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { CurrencyConversionService } from '../currencies/currency-conversion.service';
 import { AccountTemplate } from '../common/enums/account-template.enum';
 import { AccountType } from '../common/enums/account-type.enum';
 import { TransactionType } from '../common/enums/transaction-type.enum';
 import type { AccountResponseDto } from './dto/account-response.dto';
 import type { CreateAccountDto } from './dto/create-account.dto';
+import type { NetWorthSummaryDto } from './dto/net-worth-summary.dto';
 import type { UpdateAccountDto } from './dto/update-account.dto';
 
 type AccountWithCurrency = Prisma.AccountGetPayload<{
@@ -14,7 +16,10 @@ type AccountWithCurrency = Prisma.AccountGetPayload<{
 
 @Injectable()
 export class AccountsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly currencyConversion: CurrencyConversionService,
+  ) {}
 
   async getUserAccounts(
     userId: number,
@@ -45,6 +50,74 @@ export class AccountsService {
       account.startBalance,
     );
     return this.toAccountResponse(account, currentBalance);
+  }
+
+  async getNetWorthSummary(userId: number): Promise<NetWorthSummaryDto> {
+    await this.ensureUserExists(userId);
+
+    const accounts = await this.prisma.account.findMany({
+      where: { userId: BigInt(userId), isActive: true },
+      include: { currency: true },
+    });
+    const balanceMap = await this.buildCurrentBalanceMap(accounts);
+
+    const groups = new Map<
+      number | null,
+      { code: string; symbol: string; net: number }
+    >();
+    for (const account of accounts) {
+      const currencyId = account.currency ? Number(account.currency.id) : null;
+      const balance = balanceMap.get(account.id) ?? new Prisma.Decimal(0);
+      const group = groups.get(currencyId) ?? {
+        code: account.currency?.code ?? 'N/A',
+        symbol: account.currency?.symbol ?? '',
+        net: 0,
+      };
+      group.net += balance.toNumber();
+      groups.set(currencyId, group);
+    }
+
+    const rates = await this.currencyConversion.loadRates(userId);
+    let baseCurrencyCode: string | null = null;
+    if (rates.baseCurrencyId !== null) {
+      const baseCurrency = await this.prisma.currency.findUnique({
+        where: { id: BigInt(rates.baseCurrencyId) },
+      });
+      baseCurrencyCode = baseCurrency?.code ?? null;
+    }
+
+    let totalInBase = 0;
+    const unconvertibleCurrencies: string[] = [];
+    const byCurrency = Array.from(groups.entries()).map(
+      ([currencyId, group]) => {
+        const netInBase =
+          currencyId === null
+            ? null
+            : this.currencyConversion.convertToBase(
+                group.net,
+                currencyId,
+                rates,
+              );
+        if (netInBase === null) {
+          if (currencyId !== null) unconvertibleCurrencies.push(group.code);
+        } else {
+          totalInBase += netInBase;
+        }
+        return {
+          code: group.code,
+          symbol: group.symbol,
+          net: group.net,
+          netInBase,
+        };
+      },
+    );
+
+    return {
+      baseCurrencyCode,
+      totalInBase,
+      byCurrency,
+      unconvertibleCurrencies,
+    };
   }
 
   async createAccount(

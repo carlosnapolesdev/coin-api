@@ -15,7 +15,7 @@ import { CurrentUser } from '../common/decorators';
 import type { AuthenticatedUser } from '../auth/strategies/jwt.strategy';
 import { AccountsService } from './accounts.service';
 import { CreateAccountDto, UpdateAccountDto } from './dto';
-import type { AccountResponseDto } from './dto';
+import type { AccountResponseDto, NetWorthSummaryDto } from './dto';
 
 @Controller('users/me/accounts')
 export class AccountsController {
@@ -30,6 +30,13 @@ export class AccountsController {
       user.id,
       includeInactive === 'true',
     );
+  }
+
+  @Get('summary')
+  getNetWorthSummary(
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<NetWorthSummaryDto> {
+    return this.accountsService.getNetWorthSummary(user.id);
   }
 
   @Get(':accountId')
