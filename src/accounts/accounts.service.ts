@@ -45,6 +45,9 @@ export class AccountsService {
     accountId: number,
   ): Promise<AccountResponseDto> {
     const account = await this.findRequiredAccount(userId, accountId);
+    if (!account.isActive) {
+      throw new NotFoundException('Account was not found');
+    }
     const currentBalance = await this.computeAccountBalance(
       account.id,
       account.startBalance,
