@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -10,10 +11,19 @@ import {
   Patch,
   Post,
   Query,
+  Res,
+  UploadedFile,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { memoryStorage } from 'multer';
+import type { Response } from 'express';
 import { CurrentUser } from '../common/decorators';
 import type { AuthenticatedUser } from '../auth/strategies/jwt.strategy';
 import { TransactionsService } from './transactions.service';
+import { ImportService } from './import/import.service';
+import { ImportCommitDto } from './import/dto/import-commit.dto';
+import type { ColumnMapping, ImportPreviewResult } from './import/import.types';
 import {
   CreateTransactionDto,
   QueryTransactionsDto,
@@ -22,9 +32,14 @@ import {
 import type { TransactionResponseDto } from './dto';
 import type { PaginatedResponse } from '../common/dto';
 
+const MAX_IMPORT_FILE_BYTES = 5 * 1024 * 1024;
+
 @Controller('users/me/transactions')
 export class TransactionsController {
-  constructor(private readonly transactionsService: TransactionsService) {}
+  constructor(
+    private readonly transactionsService: TransactionsService,
+    private readonly importService: ImportService,
+  ) {}
 
   @Get()
   listTransactions(
@@ -48,6 +63,48 @@ export class TransactionsController {
     @Query() query: QueryTransactionsDto,
   ): Promise<PaginatedResponse<TransactionResponseDto>> {
     return this.transactionsService.searchTransactions(user.id, query);
+  }
+
+  @Get('export')
+  async exportCsv(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query() query: QueryTransactionsDto,
+    @Res() res: Response,
+  ): Promise<void> {
+    const csv = await this.transactionsService.exportCsv(user.id, query);
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader(
+      'Content-Disposition',
+      'attachment; filename="transactions.csv"',
+    );
+    res.send(csv);
+  }
+
+  @Post('import/preview')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: memoryStorage(),
+      limits: { fileSize: MAX_IMPORT_FILE_BYTES },
+    }),
+  )
+  previewImport(
+    @CurrentUser() user: AuthenticatedUser,
+    @UploadedFile() file: Express.Multer.File,
+    @Body('mapping') mappingRaw?: string,
+  ): Promise<ImportPreviewResult> {
+    if (!file) {
+      throw new BadRequestException('CSV file is required');
+    }
+    const mapping = this.parseMapping(mappingRaw);
+    return this.importService.previewCsv(user.id, file.buffer, mapping);
+  }
+
+  @Post('import/commit')
+  commitImport(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: ImportCommitDto,
+  ): Promise<{ created: number }> {
+    return this.importService.commitImport(user.id, dto.rows);
   }
 
   @Get(':transactionId')
@@ -87,5 +144,14 @@ export class TransactionsController {
     @Param('transactionId', ParseIntPipe) transactionId: number,
   ): Promise<void> {
     return this.transactionsService.deleteTransaction(user.id, transactionId);
+  }
+
+  private parseMapping(mappingRaw?: string): ColumnMapping | undefined {
+    if (!mappingRaw) return undefined;
+    try {
+      return JSON.parse(mappingRaw) as ColumnMapping;
+    } catch {
+      throw new BadRequestException('Invalid column mapping JSON');
+    }
   }
 }

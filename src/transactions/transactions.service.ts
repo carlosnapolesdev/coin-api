@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import { stringify } from 'csv-stringify/sync';
 import { PrismaService } from '../prisma/prisma.service';
 import { TransactionStatus, TransactionType } from '../common/enums';
 import type { TransactionResponseDto } from './dto/transaction-response.dto';
@@ -12,6 +13,19 @@ import type { CreateTransactionDto } from './dto/create-transaction.dto';
 import type { UpdateTransactionDto } from './dto/update-transaction.dto';
 import type { QueryTransactionsDto } from './dto/query-transactions.dto';
 import type { PaginatedResponse } from '../common/dto';
+
+const EXPORT_COLUMNS = [
+  'date',
+  'account',
+  'category',
+  'type',
+  'amount',
+  'payee',
+  'paymentMethod',
+  'status',
+  'tags',
+  'memo',
+] as const;
 
 type TransactionWithRelations = Prisma.TransactionGetPayload<{
   include: { account: true; userCategory: true };
@@ -70,7 +84,57 @@ export class TransactionsService {
 
     const page = query.page ?? 1;
     const pageSize = query.pageSize ?? 25;
+    const where = this.buildSearchWhere(userId, query);
 
+    const [total, rows] = await this.prisma.$transaction([
+      this.prisma.transaction.count({ where }),
+      this.prisma.transaction.findMany({
+        where,
+        include: { account: true, userCategory: true },
+        orderBy: [{ effectiveDate: 'desc' }, { id: 'desc' }],
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+    ]);
+
+    return {
+      data: rows.map((t) => this.toResponse(t, null)),
+      total,
+      page,
+      pageSize,
+    };
+  }
+
+  async exportCsv(userId: number, query: QueryTransactionsDto): Promise<string> {
+    await this.ensureUserExists(userId);
+
+    const where = this.buildSearchWhere(userId, query);
+    const rows = await this.prisma.transaction.findMany({
+      where,
+      include: { account: true, userCategory: true },
+      orderBy: [{ effectiveDate: 'desc' }, { id: 'desc' }],
+    });
+
+    const records = rows.map((t) => ({
+      date: t.effectiveDate.toISOString().split('T')[0],
+      account: t.account.name,
+      category: t.userCategory?.name ?? '',
+      type: t.type,
+      amount: t.amount.toNumber(),
+      payee: t.payee ?? '',
+      paymentMethod: t.paymentMethod ?? '',
+      status: t.status,
+      tags: t.tags ?? '',
+      memo: t.memo ?? '',
+    }));
+
+    return stringify(records, { header: true, columns: EXPORT_COLUMNS });
+  }
+
+  private buildSearchWhere(
+    userId: number,
+    query: QueryTransactionsDto,
+  ): Prisma.TransactionWhereInput {
     const where: Prisma.TransactionWhereInput = { userId: BigInt(userId) };
     if (query.accountId !== undefined)
       where.accountId = BigInt(query.accountId);
@@ -98,24 +162,7 @@ export class TransactionsService {
         { tags: { contains: q, mode: 'insensitive' } },
       ];
     }
-
-    const [total, rows] = await this.prisma.$transaction([
-      this.prisma.transaction.count({ where }),
-      this.prisma.transaction.findMany({
-        where,
-        include: { account: true, userCategory: true },
-        orderBy: [{ effectiveDate: 'desc' }, { id: 'desc' }],
-        skip: (page - 1) * pageSize,
-        take: pageSize,
-      }),
-    ]);
-
-    return {
-      data: rows.map((t) => this.toResponse(t, null)),
-      total,
-      page,
-      pageSize,
-    };
+    return where;
   }
 
   async getTransaction(
