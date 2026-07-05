@@ -160,7 +160,7 @@ describe('RecurringService', () => {
       mockPrisma.recurringTransaction.findFirst.mockResolvedValue(null);
 
       await expect(
-        service.updateRecurring(1, 99, { isActive: false }),
+        service.updateRecurring(1, 99, { active: false }),
       ).rejects.toThrow(NotFoundException);
       expect(mockPrisma.recurringTransaction.update).not.toHaveBeenCalled();
     });
@@ -173,7 +173,7 @@ describe('RecurringService', () => {
         makeRow(BigInt(1), { isActive: false }),
       );
 
-      await service.updateRecurring(1, 1, { isActive: false });
+      await service.updateRecurring(1, 1, { active: false });
 
       expect(mockPrisma.recurringTransaction.update).toHaveBeenCalledWith(
         expect.objectContaining({

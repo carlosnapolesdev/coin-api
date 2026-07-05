@@ -5,5 +5,5 @@ import { CreateRecurringDto } from './create-recurring.dto';
 export class UpdateRecurringDto extends PartialType(CreateRecurringDto) {
   @IsOptional()
   @IsBoolean()
-  isActive?: boolean;
+  active?: boolean;
 }

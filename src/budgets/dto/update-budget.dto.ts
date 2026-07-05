@@ -5,5 +5,5 @@ import { CreateBudgetDto } from './create-budget.dto';
 export class UpdateBudgetDto extends PartialType(CreateBudgetDto) {
   @IsOptional()
   @IsBoolean()
-  isActive?: boolean;
+  active?: boolean;
 }

@@ -43,7 +43,7 @@ export class BudgetsService {
           spent,
           remaining: amount - spent,
           percentUsed: amount > 0 ? Math.round((spent / amount) * 100) : 0,
-          isActive: b.isActive ?? true,
+          active: b.isActive ?? true,
         };
       }),
     );
@@ -83,7 +83,7 @@ export class BudgetsService {
     if (dto.amount !== undefined) data.amount = new Prisma.Decimal(dto.amount);
     if (dto.period !== undefined) data.period = dto.period;
     if (dto.startDate !== undefined) data.startDate = new Date(dto.startDate);
-    if (dto.isActive !== undefined) data.isActive = dto.isActive;
+    if (dto.active !== undefined) data.isActive = dto.active;
     await this.prisma.budget.update({ where: { id: BigInt(id) }, data });
     const list = await this.listBudgets(userId);
     return list.find((b) => b.id === id)!;

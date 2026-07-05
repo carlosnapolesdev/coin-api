@@ -153,7 +153,7 @@ export class RecurringService {
     if (dto.payee !== undefined) data.payee = dto.payee;
     if (dto.memo !== undefined) data.memo = dto.memo;
     if (dto.tags !== undefined) data.tags = dto.tags;
-    if (dto.isActive !== undefined) data.isActive = dto.isActive;
+    if (dto.active !== undefined) data.isActive = dto.active;
 
     const updated = await this.prisma.recurringTransaction.update({
       where: { id: BigInt(id) },
@@ -193,7 +193,7 @@ export class RecurringService {
       payee: r.payee,
       memo: r.memo,
       tags: r.tags,
-      isActive: r.isActive,
+      active: r.isActive,
     };
   }
 

@@ -18,5 +18,5 @@ export interface RecurringResponseDto {
   payee: string | null;
   memo: string | null;
   tags: string | null;
-  isActive: boolean;
+  active: boolean;
 }

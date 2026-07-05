@@ -54,7 +54,7 @@ describe('Budgets (e2e)', () => {
         spent: 0,
         remaining: 200,
         percentUsed: 0,
-        isActive: true,
+        active: true,
       });
       budgetId = res.body.id as number;
     });

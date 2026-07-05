@@ -69,7 +69,7 @@ describe('Recurring transactions (e2e)', () => {
         frequency: 'MONTHLY',
         interval: 1,
         nextRunDate: '2026-08-01',
-        isActive: true,
+        active: true,
       });
       recurringId = res.body.id as number;
     });

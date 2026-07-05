@@ -8,5 +8,5 @@ export interface BudgetResponseDto {
   spent: number;
   remaining: number;
   percentUsed: number;
-  isActive: boolean;
+  active: boolean;
 }
