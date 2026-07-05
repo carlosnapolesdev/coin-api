@@ -35,7 +35,7 @@ export class ImportService {
         columns: true,
         skip_empty_lines: true,
         trim: true,
-      }) as Record<string, string>[];
+      });
     } catch {
       throw new BadRequestException('Could not parse CSV file');
     }
@@ -232,7 +232,7 @@ export class ImportService {
     ) {
       errors.push(`Type "${typeRaw}" is invalid`);
     } else {
-      row.type = typeRaw as TransactionType;
+      row.type = typeRaw;
     }
 
     const amountRaw = get('amount');
@@ -259,7 +259,7 @@ export class ImportService {
       statusRaw === TransactionStatus.CLEARED ||
       statusRaw === TransactionStatus.VOID
     ) {
-      row.status = statusRaw as TransactionStatus;
+      row.status = statusRaw;
     } else {
       errors.push(`Status "${statusRaw}" is invalid`);
     }

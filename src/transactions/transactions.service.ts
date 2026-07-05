@@ -105,7 +105,10 @@ export class TransactionsService {
     };
   }
 
-  async exportCsv(userId: number, query: QueryTransactionsDto): Promise<string> {
+  async exportCsv(
+    userId: number,
+    query: QueryTransactionsDto,
+  ): Promise<string> {
     await this.ensureUserExists(userId);
 
     const where = this.buildSearchWhere(userId, query);

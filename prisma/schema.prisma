@@ -34,6 +34,7 @@ model User {
   userCategories       UserCategory[]
   userCurrencies       UserCurrency[]
   budgets              Budget[]
+  goals                Goal[]
   passwordResetTokens  PasswordResetToken[]
   recurringTransactions RecurringTransaction[]
 
@@ -86,6 +87,7 @@ model Account {
   transactions Transaction[]
   recurringTransactions            RecurringTransaction[] @relation("RecurringSourceAccount")
   recurringDestinationTransactions RecurringTransaction[] @relation("RecurringDestinationAccount")
+  goals                            Goal[]
 
   @@map("accounts")
 }
@@ -208,6 +210,25 @@ model Budget {
   @@unique([userId, categoryId, period], map: "uq_budget_user_category_period")
   @@index([userId], map: "idx_budgets_user_id")
   @@map("budgets")
+}
+
+model Goal {
+  id            BigInt    @id @default(autoincrement())
+  userId        BigInt    @map("user_id")
+  name          String    @db.VarChar(100)
+  targetAmount  Decimal   @map("target_amount") @db.Decimal(15, 2)
+  currentAmount Decimal   @default(0) @map("current_amount") @db.Decimal(15, 2)
+  targetDate    DateTime? @map("target_date") @db.Date
+  accountId     BigInt?   @map("account_id")
+  isAchieved    Boolean   @default(false) @map("is_achieved")
+  createdAt     DateTime? @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime? @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  user    User     @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_goal_user")
+  account Account? @relation(fields: [accountId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_goal_account")
+
+  @@index([userId], map: "idx_goals_user_id")
+  @@map("goals")
 }
 
 /// This table contains check constraints. Visit https://pris.ly/d/check-constraints for more info.

@@ -66,7 +66,9 @@ describe('ImportService', () => {
       const result = await service.previewCsv(1, Buffer.from(singleRowCsv));
 
       expect(result.rows[0].valid).toBe(false);
-      expect(result.errors[0].message).toMatch(/Account "Unknown" was not found/);
+      expect(result.errors[0].message).toMatch(
+        /Account "Unknown" was not found/,
+      );
     });
 
     it('throws when required columns cannot be mapped', async () => {
@@ -82,17 +84,16 @@ describe('ImportService', () => {
   });
 
   describe('commitImport', () => {
-    const makeRow = (overrides: Partial<ImportRowDto> = {}): ImportRowDto =>
-      ({
-        line: 2,
-        valid: true,
-        accountId: 1,
-        type: TransactionType.EXPENSE,
-        amount: 10,
-        effectiveDate: '2026-07-01',
-        status: TransactionStatus.CLEARED,
-        ...overrides,
-      }) as ImportRowDto;
+    const makeRow = (overrides: Partial<ImportRowDto> = {}): ImportRowDto => ({
+      line: 2,
+      valid: true,
+      accountId: 1,
+      type: TransactionType.EXPENSE,
+      amount: 10,
+      effectiveDate: '2026-07-01',
+      status: TransactionStatus.CLEARED,
+      ...overrides,
+    });
 
     it('creates all valid rows within a single transaction', async () => {
       mockPrisma.account.findMany.mockResolvedValue([{ id: BigInt(1) }]);
@@ -112,9 +113,7 @@ describe('ImportService', () => {
       mockPrisma.account.findMany.mockResolvedValue([{ id: BigInt(1) }]);
       mockPrisma.userCategory.findMany.mockResolvedValue([]);
 
-      const result = await service.commitImport(1, [
-        makeRow({ valid: false }),
-      ]);
+      const result = await service.commitImport(1, [makeRow({ valid: false })]);
 
       expect(result.created).toBe(0);
       expect(mockPrisma.$transaction).not.toHaveBeenCalled();
