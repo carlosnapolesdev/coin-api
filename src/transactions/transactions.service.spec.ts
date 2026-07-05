@@ -9,7 +9,7 @@ import type { UpdateTransactionDto } from './dto/update-transaction.dto';
 
 const makeAccount = (
   id: bigint,
-  opts: { startBalance?: number | null } = {},
+  opts: { startBalance?: number | null; isActive?: boolean } = {},
 ) => ({
   id,
   userId: BigInt(1),
@@ -26,7 +26,7 @@ const makeAccount = (
   notes: null,
   icon: null,
   isClosed: false,
-  isActive: true,
+  isActive: opts.isActive ?? true,
   defaultTemplate: 'NONE',
   excludeFromAccountSummary: false,
   outlineIntoSummary: false,
@@ -312,6 +312,23 @@ describe('TransactionsService', () => {
         NotFoundException,
       );
     });
+
+    it('still lists historical transactions when the filtered account is inactive', async () => {
+      userExists();
+      mockPrisma.account.findFirst.mockResolvedValue(
+        makeAccount(BigInt(1), { startBalance: 0, isActive: false }),
+      );
+      mockPrisma.transaction.findMany.mockResolvedValue([
+        makeTransaction(BigInt(1), {
+          type: TransactionType.INCOME,
+          amount: 50,
+        }),
+      ]);
+
+      const result = await service.getUserTransactions(1, 1);
+
+      expect(result[0].balance).toBe(50);
+    });
   });
 
   describe('getTransaction', () => {
@@ -396,6 +413,32 @@ describe('TransactionsService', () => {
         makeAccount(BigInt(1), { startBalance: 0 }),
       );
       mockPrisma.userCategory.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.createTransaction(1, { ...dto, categoryId: 99 }),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('throws NotFoundException when the account is inactive', async () => {
+      userExists();
+      mockPrisma.account.findFirst.mockResolvedValue(
+        makeAccount(BigInt(1), { startBalance: 0, isActive: false }),
+      );
+
+      await expect(service.createTransaction(1, dto)).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it('throws NotFoundException when the category is inactive', async () => {
+      userExists();
+      mockPrisma.account.findFirst.mockResolvedValue(
+        makeAccount(BigInt(1), { startBalance: 0 }),
+      );
+      mockPrisma.userCategory.findFirst.mockResolvedValue({
+        id: BigInt(99),
+        isActive: false,
+      });
 
       await expect(
         service.createTransaction(1, { ...dto, categoryId: 99 }),
@@ -498,6 +541,19 @@ describe('TransactionsService', () => {
         NotFoundException,
       );
     });
+
+    it('throws NotFoundException when the destination account is inactive', async () => {
+      userExists();
+      mockPrisma.account.findFirst
+        .mockResolvedValueOnce(makeAccount(BigInt(1), { startBalance: 0 }))
+        .mockResolvedValueOnce(
+          makeAccount(BigInt(2), { startBalance: 0, isActive: false }),
+        );
+
+      await expect(service.createTransaction(1, transferDto)).rejects.toThrow(
+        NotFoundException,
+      );
+    });
   });
 
   describe('updateTransaction', () => {
@@ -526,6 +582,31 @@ describe('TransactionsService', () => {
       await expect(service.updateTransaction(1, 99, {})).rejects.toThrow(
         NotFoundException,
       );
+    });
+
+    it('throws NotFoundException when moved to an inactive account', async () => {
+      const existingTx = makeTransaction(BigInt(5));
+      mockPrisma.transaction.findFirst.mockResolvedValue(existingTx);
+      mockPrisma.account.findFirst.mockResolvedValue(
+        makeAccount(BigInt(2), { isActive: false }),
+      );
+
+      await expect(
+        service.updateTransaction(1, 5, { accountId: 2 }),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('throws NotFoundException when moved to an inactive category', async () => {
+      const existingTx = makeTransaction(BigInt(5));
+      mockPrisma.transaction.findFirst.mockResolvedValue(existingTx);
+      mockPrisma.userCategory.findFirst.mockResolvedValue({
+        id: BigInt(9),
+        isActive: false,
+      });
+
+      await expect(
+        service.updateTransaction(1, 5, { categoryId: 9 }),
+      ).rejects.toThrow(NotFoundException);
     });
   });
 

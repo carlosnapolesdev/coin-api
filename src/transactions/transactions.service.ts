@@ -184,7 +184,7 @@ export class TransactionsService {
     dto: CreateTransactionDto,
   ): Promise<TransactionResponseDto> {
     await this.ensureUserExists(userId);
-    await this.findRequiredAccount(userId, dto.accountId);
+    await this.findRequiredAccount(userId, dto.accountId, true);
 
     if (dto.type === TransactionType.TRANSFER) {
       return this.createTransfer(userId, dto);
@@ -231,7 +231,7 @@ export class TransactionsService {
         'Source and destination accounts must differ',
       );
     }
-    await this.findRequiredAccount(userId, dto.destinationAccountId);
+    await this.findRequiredAccount(userId, dto.destinationAccountId, true);
 
     const groupId = randomUUID();
     const now = new Date();
@@ -284,7 +284,7 @@ export class TransactionsService {
     await this.findRequiredTransaction(userId, transactionId);
 
     if (dto.accountId !== undefined) {
-      await this.findRequiredAccount(userId, dto.accountId);
+      await this.findRequiredAccount(userId, dto.accountId, true);
     }
     if (dto.categoryId !== undefined) {
       await this.findRequiredCategory(userId, dto.categoryId);
@@ -404,12 +404,13 @@ export class TransactionsService {
   private async findRequiredAccount(
     userId: number,
     accountId: number,
+    requireActive = false,
   ): Promise<{ id: bigint; startBalance: Prisma.Decimal | null }> {
     const account = await this.prisma.account.findFirst({
       where: { id: BigInt(accountId), userId: BigInt(userId) },
-      select: { id: true, startBalance: true },
+      select: { id: true, startBalance: true, isActive: true },
     });
-    if (!account) {
+    if (!account || (requireActive && !account.isActive)) {
       throw new NotFoundException('Account was not found');
     }
     return account;
@@ -421,9 +422,9 @@ export class TransactionsService {
   ): Promise<void> {
     const category = await this.prisma.userCategory.findFirst({
       where: { id: BigInt(categoryId), userId: BigInt(userId) },
-      select: { id: true },
+      select: { id: true, isActive: true },
     });
-    if (!category) {
+    if (!category?.isActive) {
       throw new NotFoundException('Category was not found');
     }
   }
