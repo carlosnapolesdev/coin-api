@@ -224,15 +224,15 @@ export class ImportService {
     const typeRaw = get('type').toUpperCase();
     if (!typeRaw) {
       errors.push('Type is required');
-    } else if (typeRaw === TransactionType.TRANSFER) {
+    } else if (typeRaw === (TransactionType.TRANSFER as string)) {
       errors.push('Transfers are not supported via CSV import');
     } else if (
-      typeRaw !== TransactionType.INCOME &&
-      typeRaw !== TransactionType.EXPENSE
+      typeRaw !== (TransactionType.INCOME as string) &&
+      typeRaw !== (TransactionType.EXPENSE as string)
     ) {
       errors.push(`Type "${typeRaw}" is invalid`);
     } else {
-      row.type = typeRaw;
+      row.type = typeRaw as TransactionType;
     }
 
     const amountRaw = get('amount');
@@ -255,11 +255,11 @@ export class ImportService {
     if (!statusRaw) {
       row.status = TransactionStatus.CLEARED;
     } else if (
-      statusRaw === TransactionStatus.PENDING ||
-      statusRaw === TransactionStatus.CLEARED ||
-      statusRaw === TransactionStatus.VOID
+      statusRaw === (TransactionStatus.PENDING as string) ||
+      statusRaw === (TransactionStatus.CLEARED as string) ||
+      statusRaw === (TransactionStatus.VOID as string)
     ) {
-      row.status = statusRaw;
+      row.status = statusRaw as TransactionStatus;
     } else {
       errors.push(`Status "${statusRaw}" is invalid`);
     }
