@@ -85,7 +85,7 @@ describe('Categories (e2e)', () => {
         id: expect.any(Number),
         name: 'My Category',
         type: 'EXPENSE',
-        isActive: true,
+        active: true,
       });
       createdCategoryId = res.body.id as number;
     });
@@ -128,7 +128,7 @@ describe('Categories (e2e)', () => {
         .send({ active: false });
 
       expect(res.status).toBe(200);
-      expect(res.body).toMatchObject({ isActive: false });
+      expect(res.body).toMatchObject({ active: false });
     });
 
     it('404 - category not found', async () => {

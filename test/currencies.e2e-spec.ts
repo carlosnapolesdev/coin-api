@@ -52,7 +52,7 @@ describe('Currencies (e2e)', () => {
       expect(res.status).toBe(200);
       expect(Array.isArray(res.body)).toBe(true);
       expect(res.body.length).toBeGreaterThanOrEqual(1);
-      expect(res.body[0]).toMatchObject({ isBase: true });
+      expect(res.body[0]).toMatchObject({ base: true });
     });
 
     it('401 - no token', async () => {
@@ -81,8 +81,8 @@ describe('Currencies (e2e)', () => {
       expect(res.status).toBe(201);
       expect(res.body).toMatchObject({
         currencyId: secondCurrencyId,
-        isBase: false,
-        isActive: true,
+        base: false,
+        active: true,
       });
     });
 
@@ -102,8 +102,8 @@ describe('Currencies (e2e)', () => {
         .get('/api/users/me/currencies?includeInactive=true')
         .set(auth());
       const nonBase = (
-        listRes.body as Array<{ currencyId: number; isBase: boolean }>
-      ).find((c) => !c.isBase);
+        listRes.body as Array<{ currencyId: number; base: boolean }>
+      ).find((c) => !c.base);
       if (!nonBase) return;
 
       const res = await request(ctx.server)
@@ -112,7 +112,7 @@ describe('Currencies (e2e)', () => {
         .send({ active: false });
 
       expect(res.status).toBe(200);
-      expect(res.body).toMatchObject({ isActive: false });
+      expect(res.body).toMatchObject({ active: false });
     });
 
     it('404 - currency not in user set', async () => {
