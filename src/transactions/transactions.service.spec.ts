@@ -9,7 +9,11 @@ import type { UpdateTransactionDto } from './dto/update-transaction.dto';
 
 const makeAccount = (
   id: bigint,
-  opts: { startBalance?: number | null; isActive?: boolean } = {},
+  opts: {
+    startBalance?: number | null;
+    isActive?: boolean;
+    currencyId?: bigint | null;
+  } = {},
 ) => ({
   id,
   userId: BigInt(1),
@@ -17,7 +21,7 @@ const makeAccount = (
   institution: null,
   type: 'BANK',
   accountNumber: null,
-  currencyId: null,
+  currencyId: opts.currencyId ?? null,
   groupName: null,
   startBalance:
     opts.startBalance !== undefined && opts.startBalance !== null
@@ -49,6 +53,11 @@ const makeTransaction = (
     effectiveDate?: string;
     categoryId?: bigint | null;
     accountId?: bigint;
+    accountCurrencyId?: bigint | null;
+    exchangeRate?: number | null;
+    transferIn?: boolean;
+    transferGroupId?: string | null;
+    transferAccountId?: bigint | null;
   } = {},
 ) => {
   const accountId = opts.accountId ?? BigInt(1);
@@ -65,9 +74,16 @@ const makeTransaction = (
     memo: null,
     status: TransactionStatus.CLEARED,
     tags: null,
+    transferGroupId: opts.transferGroupId ?? null,
+    transferAccountId: opts.transferAccountId ?? null,
+    transferIn: opts.transferIn ?? null,
+    exchangeRate:
+      opts.exchangeRate !== undefined && opts.exchangeRate !== null
+        ? new Prisma.Decimal(opts.exchangeRate)
+        : null,
     createdAt: new Date('2024-01-01'),
     updatedAt: new Date('2024-01-01'),
-    account: makeAccount(accountId),
+    account: makeAccount(accountId, { currencyId: opts.accountCurrencyId }),
     userCategory:
       opts.categoryId !== undefined && opts.categoryId !== null
         ? {
@@ -552,6 +568,106 @@ describe('TransactionsService', () => {
 
       await expect(service.createTransaction(1, transferDto)).rejects.toThrow(
         NotFoundException,
+      );
+    });
+
+    it('converts the destination amount using the supplied exchange rate for a cross-currency transfer', async () => {
+      userExists();
+      mockPrisma.account.findFirst
+        .mockResolvedValueOnce(
+          makeAccount(BigInt(1), { startBalance: 0, currencyId: BigInt(1) }),
+        )
+        .mockResolvedValueOnce(
+          makeAccount(BigInt(2), { startBalance: 0, currencyId: BigInt(2) }),
+        );
+      mockPrisma.$transaction.mockImplementation(
+        (cb: (tx: typeof mockPrisma) => unknown) => cb(mockPrisma),
+      );
+      mockPrisma.transaction.create
+        .mockResolvedValueOnce(makeTransaction(BigInt(10)))
+        .mockResolvedValueOnce(makeTransaction(BigInt(11)));
+
+      await service.createTransaction(1, {
+        ...transferDto,
+        amount: 100,
+        exchangeRate: 40,
+      });
+
+      expect(mockPrisma.transaction.create.mock.calls[0][0].data).toEqual(
+        expect.objectContaining({
+          amount: new Prisma.Decimal(100),
+          exchangeRate: new Prisma.Decimal(40),
+        }),
+      );
+      expect(mockPrisma.transaction.create.mock.calls[1][0].data).toEqual(
+        expect.objectContaining({
+          amount: new Prisma.Decimal(4000),
+          exchangeRate: new Prisma.Decimal(40),
+        }),
+      );
+    });
+
+    it('rejects a cross-currency transfer without an exchange rate', async () => {
+      userExists();
+      mockPrisma.account.findFirst
+        .mockResolvedValueOnce(
+          makeAccount(BigInt(1), { startBalance: 0, currencyId: BigInt(1) }),
+        )
+        .mockResolvedValueOnce(
+          makeAccount(BigInt(2), { startBalance: 0, currencyId: BigInt(2) }),
+        );
+
+      await expect(service.createTransaction(1, transferDto)).rejects.toThrow(
+        'Exchange rate is required for cross-currency transfers',
+      );
+    });
+
+    it('rejects a cross-currency transfer with a non-positive exchange rate', async () => {
+      userExists();
+      mockPrisma.account.findFirst
+        .mockResolvedValueOnce(
+          makeAccount(BigInt(1), { startBalance: 0, currencyId: BigInt(1) }),
+        )
+        .mockResolvedValueOnce(
+          makeAccount(BigInt(2), { startBalance: 0, currencyId: BigInt(2) }),
+        );
+
+      await expect(
+        service.createTransaction(1, { ...transferDto, exchangeRate: 0 }),
+      ).rejects.toThrow(
+        'Exchange rate is required for cross-currency transfers',
+      );
+    });
+
+    it('ignores exchangeRate and stores the same amount for a same-currency transfer', async () => {
+      userExists();
+      mockPrisma.account.findFirst
+        .mockResolvedValueOnce(
+          makeAccount(BigInt(1), { startBalance: 0, currencyId: BigInt(1) }),
+        )
+        .mockResolvedValueOnce(
+          makeAccount(BigInt(2), { startBalance: 0, currencyId: BigInt(1) }),
+        );
+      mockPrisma.$transaction.mockImplementation(
+        (cb: (tx: typeof mockPrisma) => unknown) => cb(mockPrisma),
+      );
+      mockPrisma.transaction.create
+        .mockResolvedValueOnce(makeTransaction(BigInt(10)))
+        .mockResolvedValueOnce(makeTransaction(BigInt(11)));
+
+      await service.createTransaction(1, transferDto);
+
+      expect(mockPrisma.transaction.create.mock.calls[0][0].data).toEqual(
+        expect.objectContaining({
+          amount: new Prisma.Decimal(50),
+          exchangeRate: null,
+        }),
+      );
+      expect(mockPrisma.transaction.create.mock.calls[1][0].data).toEqual(
+        expect.objectContaining({
+          amount: new Prisma.Decimal(50),
+          exchangeRate: null,
+        }),
       );
     });
   });

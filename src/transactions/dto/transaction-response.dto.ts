@@ -16,6 +16,7 @@ export interface TransactionResponseDto {
   tags: string | null;
   transferAccountId: number | null;
   transferIn: boolean | null;
+  exchangeRate: number | null;
   balance: number | null;
   createdAt: Date | null;
   updatedAt: Date | null;

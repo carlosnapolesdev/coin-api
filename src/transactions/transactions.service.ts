@@ -184,10 +184,14 @@ export class TransactionsService {
     dto: CreateTransactionDto,
   ): Promise<TransactionResponseDto> {
     await this.ensureUserExists(userId);
-    await this.findRequiredAccount(userId, dto.accountId, true);
+    const sourceAccount = await this.findRequiredAccount(
+      userId,
+      dto.accountId,
+      true,
+    );
 
     if (dto.type === TransactionType.TRANSFER) {
-      return this.createTransfer(userId, dto);
+      return this.createTransfer(userId, dto, sourceAccount);
     }
 
     if (dto.categoryId !== undefined) {
@@ -220,6 +224,11 @@ export class TransactionsService {
   private async createTransfer(
     userId: number,
     dto: CreateTransactionDto,
+    sourceAccount: {
+      id: bigint;
+      startBalance: Prisma.Decimal | null;
+      currencyId: bigint | null;
+    },
   ): Promise<TransactionResponseDto> {
     if (dto.destinationAccountId === undefined) {
       throw new BadRequestException(
@@ -231,15 +240,38 @@ export class TransactionsService {
         'Source and destination accounts must differ',
       );
     }
-    await this.findRequiredAccount(userId, dto.destinationAccountId, true);
+    const destinationAccount = await this.findRequiredAccount(
+      userId,
+      dto.destinationAccountId,
+      true,
+    );
+
+    const needsConversion =
+      sourceAccount.currencyId !== null &&
+      destinationAccount.currencyId !== null &&
+      sourceAccount.currencyId !== destinationAccount.currencyId;
+
+    let exchangeRate: Prisma.Decimal | null = null;
+    let destinationAmount = new Prisma.Decimal(dto.amount);
+
+    if (needsConversion) {
+      if (dto.exchangeRate === undefined || dto.exchangeRate <= 0) {
+        throw new BadRequestException(
+          'Exchange rate is required for cross-currency transfers',
+        );
+      }
+      exchangeRate = new Prisma.Decimal(dto.exchangeRate);
+      destinationAmount = new Prisma.Decimal(dto.amount)
+        .mul(exchangeRate)
+        .toDecimalPlaces(2);
+    }
 
     const groupId = randomUUID();
     const now = new Date();
-    const base = {
+    const shared = {
       userId: BigInt(userId),
       categoryId: null,
       type: TransactionType.TRANSFER,
-      amount: new Prisma.Decimal(dto.amount),
       effectiveDate: new Date(dto.effectiveDate),
       payee: dto.payee ?? null,
       paymentMethod: dto.paymentMethod ?? null,
@@ -247,6 +279,7 @@ export class TransactionsService {
       status: dto.status ?? TransactionStatus.CLEARED,
       tags: dto.tags ?? null,
       transferGroupId: groupId,
+      exchangeRate,
       createdAt: now,
       updatedAt: now,
     };
@@ -254,8 +287,9 @@ export class TransactionsService {
     const source = await this.prisma.$transaction(async (tx) => {
       const out = await tx.transaction.create({
         data: {
-          ...base,
+          ...shared,
           accountId: BigInt(dto.accountId),
+          amount: new Prisma.Decimal(dto.amount),
           transferAccountId: BigInt(dto.destinationAccountId as number),
           transferIn: false,
         },
@@ -263,8 +297,9 @@ export class TransactionsService {
       });
       await tx.transaction.create({
         data: {
-          ...base,
+          ...shared,
           accountId: BigInt(dto.destinationAccountId as number),
+          amount: destinationAmount,
           transferAccountId: BigInt(dto.accountId),
           transferIn: true,
         },
@@ -381,6 +416,7 @@ export class TransactionsService {
         ? Number(t.transferAccountId)
         : null,
       transferIn: t.transferIn ?? null,
+      exchangeRate: t.exchangeRate ? t.exchangeRate.toNumber() : null,
       balance: balance !== null ? balance.toNumber() : null,
       createdAt: t.createdAt,
       updatedAt: t.updatedAt,
@@ -405,10 +441,19 @@ export class TransactionsService {
     userId: number,
     accountId: number,
     requireActive = false,
-  ): Promise<{ id: bigint; startBalance: Prisma.Decimal | null }> {
+  ): Promise<{
+    id: bigint;
+    startBalance: Prisma.Decimal | null;
+    currencyId: bigint | null;
+  }> {
     const account = await this.prisma.account.findFirst({
       where: { id: BigInt(accountId), userId: BigInt(userId) },
-      select: { id: true, startBalance: true, isActive: true },
+      select: {
+        id: true,
+        startBalance: true,
+        isActive: true,
+        currencyId: true,
+      },
     });
     if (!account || (requireActive && !account.isActive)) {
       throw new NotFoundException('Account was not found');

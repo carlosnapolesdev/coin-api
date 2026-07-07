@@ -31,6 +31,15 @@ export class CreateTransactionDto {
   @Min(1)
   destinationAccountId?: number;
 
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber(
+    { maxDecimalPlaces: 6 },
+    { message: 'Exchange rate must have at most 6 decimal places' },
+  )
+  @Min(0.000001, { message: 'Exchange rate must be greater than 0' })
+  exchangeRate?: number;
+
   @IsNotEmpty({ message: 'Transaction type is required' })
   @IsEnum(TransactionType)
   type: TransactionType;
