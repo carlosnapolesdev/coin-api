@@ -266,6 +266,14 @@ export class AccountsService {
     }
   }
 
+  private isInflow(row: { type: string; transferIn: boolean | null }): boolean {
+    const type = row.type as TransactionType;
+    return (
+      type === TransactionType.INCOME ||
+      (type === TransactionType.TRANSFER && row.transferIn === true)
+    );
+  }
+
   private async buildCurrentBalanceMap(
     accounts: AccountWithCurrency[],
   ): Promise<Map<bigint, Prisma.Decimal>> {
@@ -277,7 +285,7 @@ export class AccountsService {
     if (accounts.length === 0) return map;
 
     const txSums = await this.prisma.transaction.groupBy({
-      by: ['accountId', 'type'],
+      by: ['accountId', 'type', 'transferIn'],
       where: { accountId: { in: accounts.map((a) => a.id) } },
       _sum: { amount: true },
     });
@@ -285,7 +293,7 @@ export class AccountsService {
     for (const row of txSums) {
       const current = map.get(row.accountId) ?? new Prisma.Decimal(0);
       const amt = row._sum.amount ?? new Prisma.Decimal(0);
-      if (row.type === (TransactionType.INCOME as string)) {
+      if (this.isInflow(row)) {
         map.set(row.accountId, current.add(amt));
       } else {
         map.set(row.accountId, current.sub(amt));
@@ -300,7 +308,7 @@ export class AccountsService {
     startBalance: Prisma.Decimal | null,
   ): Promise<Prisma.Decimal> {
     const txSums = await this.prisma.transaction.groupBy({
-      by: ['type'],
+      by: ['type', 'transferIn'],
       where: { accountId },
       _sum: { amount: true },
     });
@@ -308,7 +316,7 @@ export class AccountsService {
     let balance = startBalance ?? new Prisma.Decimal(0);
     for (const row of txSums) {
       const amt = row._sum.amount ?? new Prisma.Decimal(0);
-      if (row.type === (TransactionType.INCOME as string)) {
+      if (this.isInflow(row)) {
         balance = balance.add(amt);
       } else {
         balance = balance.sub(amt);

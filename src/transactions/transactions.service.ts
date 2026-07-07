@@ -412,7 +412,8 @@ export class TransactionsService {
     if (dto.effectiveDate !== undefined)
       shared.effectiveDate = new Date(dto.effectiveDate);
     if (dto.payee !== undefined) shared.payee = dto.payee;
-    if (dto.paymentMethod !== undefined) shared.paymentMethod = dto.paymentMethod;
+    if (dto.paymentMethod !== undefined)
+      shared.paymentMethod = dto.paymentMethod;
     if (dto.memo !== undefined) shared.memo = dto.memo;
     if (dto.status !== undefined) shared.status = dto.status;
     if (dto.tags !== undefined) shared.tags = dto.tags;
@@ -432,7 +433,9 @@ export class TransactionsService {
         return [updatedSrc, updatedDst];
       });
 
-    const requested = existing.transferIn ? updatedDestinationLeg : updatedSourceLeg;
+    const requested = existing.transferIn
+      ? updatedDestinationLeg
+      : updatedSourceLeg;
     return this.toResponse(requested, null);
   }
 

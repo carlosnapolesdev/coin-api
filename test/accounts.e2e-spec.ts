@@ -96,6 +96,65 @@ describe('Accounts (e2e)', () => {
       expect(res.body).toMatchObject({ id: accountId, name: 'Test Account' });
     });
 
+    it('200 - reflects an incoming transfer as a positive currentBalance on the destination account', async () => {
+      const transferEmail = 'accounts-transfer-e2e@test.coinflow';
+      await cleanupUser(ctx.prisma, transferEmail);
+      const transferUser = await registerTestUser(
+        ctx.server,
+        transferEmail,
+        currencyId,
+      );
+      const transferAuth = {
+        Authorization: `Bearer ${transferUser.token}`,
+      };
+
+      const allCurrencies = (await request(ctx.server).get('/api/currencies'))
+        .body as Array<{ id: number }>;
+      const otherCurrencyId = allCurrencies.find(
+        (c) => c.id !== currencyId,
+      )!.id;
+
+      const usdRes = await request(ctx.server)
+        .post('/api/users/me/accounts')
+        .set(transferAuth)
+        .send({ name: 'E2E Transfer Source', currencyId, startBalance: 0 });
+      const uyuRes = await request(ctx.server)
+        .post('/api/users/me/accounts')
+        .set(transferAuth)
+        .send({
+          name: 'E2E Transfer Destination',
+          currencyId: otherCurrencyId,
+          startBalance: 0,
+        });
+      const usdId = usdRes.body.id as number;
+      const uyuId = uyuRes.body.id as number;
+
+      await request(ctx.server)
+        .post('/api/users/me/transactions')
+        .set(transferAuth)
+        .send({
+          accountId: usdId,
+          destinationAccountId: uyuId,
+          type: 'TRANSFER',
+          amount: 100,
+          exchangeRate: 40,
+          effectiveDate: '2026-02-01',
+        })
+        .expect(201);
+
+      const srcAcc = await request(ctx.server)
+        .get(`/api/users/me/accounts/${usdId}`)
+        .set(transferAuth);
+      const dstAcc = await request(ctx.server)
+        .get(`/api/users/me/accounts/${uyuId}`)
+        .set(transferAuth);
+
+      expect(srcAcc.body.currentBalance).toBe(-100);
+      expect(dstAcc.body.currentBalance).toBe(4000);
+
+      await cleanupUser(ctx.prisma, transferEmail);
+    });
+
     it('404 - account not found', async () => {
       const res = await request(ctx.server)
         .get('/api/users/me/accounts/999999')

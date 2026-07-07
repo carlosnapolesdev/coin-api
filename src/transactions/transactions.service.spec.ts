@@ -756,8 +756,14 @@ describe('TransactionsService', () => {
         (cb: (tx: typeof mockPrisma) => unknown) => cb(mockPrisma),
       );
       mockPrisma.transaction.update
-        .mockResolvedValueOnce({ ...sourceLeg, amount: new Prisma.Decimal(200) })
-        .mockResolvedValueOnce({ ...destinationLeg, amount: new Prisma.Decimal(9000) });
+        .mockResolvedValueOnce({
+          ...sourceLeg,
+          amount: new Prisma.Decimal(200),
+        })
+        .mockResolvedValueOnce({
+          ...destinationLeg,
+          amount: new Prisma.Decimal(9000),
+        });
 
       const result = await service.updateTransaction(1, 10, {
         amount: 200,
@@ -835,7 +841,9 @@ describe('TransactionsService', () => {
 
       await expect(
         service.updateTransaction(1, 10, { accountId: 3 }),
-      ).rejects.toThrow('Changing accounts on an existing transfer is not supported');
+      ).rejects.toThrow(
+        'Changing accounts on an existing transfer is not supported',
+      );
     });
   });
 

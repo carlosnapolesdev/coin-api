@@ -330,10 +330,11 @@ describe('Transactions (e2e)', () => {
     });
 
     it('201 - converts the amount for a cross-currency transfer', async () => {
-      const allCurrencies = (
-        await request(ctx.server).get('/api/currencies')
-      ).body as Array<{ id: number }>;
-      const otherCurrencyId = allCurrencies.find((c) => c.id !== currencyId)!.id;
+      const allCurrencies = (await request(ctx.server).get('/api/currencies'))
+        .body as Array<{ id: number }>;
+      const otherCurrencyId = allCurrencies.find(
+        (c) => c.id !== currencyId,
+      )!.id;
 
       const usdAccount = await request(ctx.server)
         .post('/api/users/me/accounts')
@@ -342,7 +343,11 @@ describe('Transactions (e2e)', () => {
       const uyuAccount = await request(ctx.server)
         .post('/api/users/me/accounts')
         .set(auth())
-        .send({ name: 'FX Destination', currencyId: otherCurrencyId, startBalance: 0 });
+        .send({
+          name: 'FX Destination',
+          currencyId: otherCurrencyId,
+          startBalance: 0,
+        });
 
       const res = await request(ctx.server)
         .post('/api/users/me/transactions')
@@ -371,10 +376,11 @@ describe('Transactions (e2e)', () => {
     });
 
     it('400 - rejects a cross-currency transfer without an exchange rate', async () => {
-      const allCurrencies = (
-        await request(ctx.server).get('/api/currencies')
-      ).body as Array<{ id: number }>;
-      const otherCurrencyId = allCurrencies.find((c) => c.id !== currencyId)!.id;
+      const allCurrencies = (await request(ctx.server).get('/api/currencies'))
+        .body as Array<{ id: number }>;
+      const otherCurrencyId = allCurrencies.find(
+        (c) => c.id !== currencyId,
+      )!.id;
 
       const usdAccount = await request(ctx.server)
         .post('/api/users/me/accounts')
@@ -383,7 +389,11 @@ describe('Transactions (e2e)', () => {
       const uyuAccount = await request(ctx.server)
         .post('/api/users/me/accounts')
         .set(auth())
-        .send({ name: 'FX Destination 2', currencyId: otherCurrencyId, startBalance: 0 });
+        .send({
+          name: 'FX Destination 2',
+          currencyId: otherCurrencyId,
+          startBalance: 0,
+        });
 
       const res = await request(ctx.server)
         .post('/api/users/me/transactions')
