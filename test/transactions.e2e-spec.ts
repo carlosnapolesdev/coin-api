@@ -329,6 +329,76 @@ describe('Transactions (e2e)', () => {
       expect(dst.body[0].balance).toBe(50);
     });
 
+    it('201 - converts the amount for a cross-currency transfer', async () => {
+      const allCurrencies = (
+        await request(ctx.server).get('/api/currencies')
+      ).body as Array<{ id: number }>;
+      const otherCurrencyId = allCurrencies.find((c) => c.id !== currencyId)!.id;
+
+      const usdAccount = await request(ctx.server)
+        .post('/api/users/me/accounts')
+        .set(auth())
+        .send({ name: 'FX Source', currencyId, startBalance: 0 });
+      const uyuAccount = await request(ctx.server)
+        .post('/api/users/me/accounts')
+        .set(auth())
+        .send({ name: 'FX Destination', currencyId: otherCurrencyId, startBalance: 0 });
+
+      const res = await request(ctx.server)
+        .post('/api/users/me/transactions')
+        .set(auth())
+        .send({
+          accountId: usdAccount.body.id,
+          destinationAccountId: uyuAccount.body.id,
+          type: 'TRANSFER',
+          amount: 100,
+          exchangeRate: 40,
+          effectiveDate: '2026-02-01',
+        });
+
+      expect(res.status).toBe(201);
+      expect(res.body).toMatchObject({ amount: 100, exchangeRate: 40 });
+
+      const src = await request(ctx.server)
+        .get(`/api/users/me/transactions?accountId=${usdAccount.body.id}`)
+        .set(auth());
+      const dst = await request(ctx.server)
+        .get(`/api/users/me/transactions?accountId=${uyuAccount.body.id}`)
+        .set(auth());
+
+      expect(src.body[0].balance).toBe(-100);
+      expect(dst.body[0].balance).toBe(4000);
+    });
+
+    it('400 - rejects a cross-currency transfer without an exchange rate', async () => {
+      const allCurrencies = (
+        await request(ctx.server).get('/api/currencies')
+      ).body as Array<{ id: number }>;
+      const otherCurrencyId = allCurrencies.find((c) => c.id !== currencyId)!.id;
+
+      const usdAccount = await request(ctx.server)
+        .post('/api/users/me/accounts')
+        .set(auth())
+        .send({ name: 'FX Source 2', currencyId, startBalance: 0 });
+      const uyuAccount = await request(ctx.server)
+        .post('/api/users/me/accounts')
+        .set(auth())
+        .send({ name: 'FX Destination 2', currencyId: otherCurrencyId, startBalance: 0 });
+
+      const res = await request(ctx.server)
+        .post('/api/users/me/transactions')
+        .set(auth())
+        .send({
+          accountId: usdAccount.body.id,
+          destinationAccountId: uyuAccount.body.id,
+          type: 'TRANSFER',
+          amount: 100,
+          effectiveDate: '2026-02-01',
+        });
+
+      expect(res.status).toBe(400);
+    });
+
     it('400 - rejects a transfer without destinationAccountId', async () => {
       const res = await request(ctx.server)
         .post('/api/users/me/transactions')
