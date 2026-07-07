@@ -42,4 +42,27 @@ export class CurrencyConversionService {
     if (!rate) return null;
     return amount / rate;
   }
+
+  convertBetween(
+    amount: number,
+    fromCurrencyId: number,
+    toCurrencyId: number,
+    ratesMap: CurrencyRatesMap,
+  ): number | null {
+    if (fromCurrencyId === toCurrencyId) return amount;
+    const inBase = this.convertToBase(amount, fromCurrencyId, ratesMap);
+    if (inBase === null) return null;
+    const toRate = ratesMap.rates.get(toCurrencyId);
+    if (!toRate) return null;
+    return inBase * toRate;
+  }
+
+  async getRateBetween(
+    userId: number,
+    fromCurrencyId: number,
+    toCurrencyId: number,
+  ): Promise<number | null> {
+    const rates = await this.loadRates(userId);
+    return this.convertBetween(1, fromCurrencyId, toCurrencyId, rates);
+  }
 }
