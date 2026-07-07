@@ -726,6 +726,119 @@ describe('TransactionsService', () => {
     });
   });
 
+  describe('updateTransaction — TRANSFER', () => {
+    it('recomputes the destination amount when amount and rate change', async () => {
+      const sourceLeg = makeTransaction(BigInt(10), {
+        type: TransactionType.TRANSFER,
+        amount: 100,
+        accountId: BigInt(1),
+        accountCurrencyId: BigInt(1),
+        transferIn: false,
+        transferGroupId: 'grp-1',
+        transferAccountId: BigInt(2),
+        exchangeRate: 40,
+      });
+      const destinationLeg = makeTransaction(BigInt(11), {
+        type: TransactionType.TRANSFER,
+        amount: 4000,
+        accountId: BigInt(2),
+        accountCurrencyId: BigInt(2),
+        transferIn: true,
+        transferGroupId: 'grp-1',
+        transferAccountId: BigInt(1),
+        exchangeRate: 40,
+      });
+
+      mockPrisma.transaction.findFirst
+        .mockResolvedValueOnce(sourceLeg) // findRequiredTransaction(existing)
+        .mockResolvedValueOnce(destinationLeg); // counterpart lookup
+      mockPrisma.$transaction.mockImplementation(
+        (cb: (tx: typeof mockPrisma) => unknown) => cb(mockPrisma),
+      );
+      mockPrisma.transaction.update
+        .mockResolvedValueOnce({ ...sourceLeg, amount: new Prisma.Decimal(200) })
+        .mockResolvedValueOnce({ ...destinationLeg, amount: new Prisma.Decimal(9000) });
+
+      const result = await service.updateTransaction(1, 10, {
+        amount: 200,
+        exchangeRate: 45,
+      });
+
+      expect(mockPrisma.transaction.update.mock.calls[0][0]).toEqual(
+        expect.objectContaining({
+          where: { id: BigInt(10) },
+          data: expect.objectContaining({
+            amount: new Prisma.Decimal(200),
+            exchangeRate: new Prisma.Decimal(45),
+          }),
+        }),
+      );
+      expect(mockPrisma.transaction.update.mock.calls[1][0]).toEqual(
+        expect.objectContaining({
+          where: { id: BigInt(11) },
+          data: expect.objectContaining({
+            amount: new Prisma.Decimal(9000),
+            exchangeRate: new Prisma.Decimal(45),
+          }),
+        }),
+      );
+      expect(result.id).toBe(10);
+    });
+
+    it('reuses the stored exchange rate when only the amount changes', async () => {
+      const sourceLeg = makeTransaction(BigInt(10), {
+        type: TransactionType.TRANSFER,
+        amount: 100,
+        accountId: BigInt(1),
+        accountCurrencyId: BigInt(1),
+        transferIn: false,
+        transferGroupId: 'grp-1',
+        transferAccountId: BigInt(2),
+        exchangeRate: 40,
+      });
+      const destinationLeg = makeTransaction(BigInt(11), {
+        type: TransactionType.TRANSFER,
+        amount: 4000,
+        accountId: BigInt(2),
+        accountCurrencyId: BigInt(2),
+        transferIn: true,
+        transferGroupId: 'grp-1',
+        transferAccountId: BigInt(1),
+        exchangeRate: 40,
+      });
+
+      mockPrisma.transaction.findFirst
+        .mockResolvedValueOnce(sourceLeg)
+        .mockResolvedValueOnce(destinationLeg);
+      mockPrisma.$transaction.mockImplementation(
+        (cb: (tx: typeof mockPrisma) => unknown) => cb(mockPrisma),
+      );
+      mockPrisma.transaction.update
+        .mockResolvedValueOnce(sourceLeg)
+        .mockResolvedValueOnce(destinationLeg);
+
+      await service.updateTransaction(1, 10, { amount: 50 });
+
+      expect(mockPrisma.transaction.update.mock.calls[1][0].data).toEqual(
+        expect.objectContaining({ amount: new Prisma.Decimal(2000) }),
+      );
+    });
+
+    it('rejects changing the account on an existing transfer', async () => {
+      const sourceLeg = makeTransaction(BigInt(10), {
+        type: TransactionType.TRANSFER,
+        transferIn: false,
+        transferGroupId: 'grp-1',
+        transferAccountId: BigInt(2),
+      });
+      mockPrisma.transaction.findFirst.mockResolvedValueOnce(sourceLeg);
+
+      await expect(
+        service.updateTransaction(1, 10, { accountId: 3 }),
+      ).rejects.toThrow('Changing accounts on an existing transfer is not supported');
+    });
+  });
+
   describe('deleteTransaction', () => {
     it('performs a hard delete of the transaction', async () => {
       mockPrisma.transaction.findFirst.mockResolvedValue(

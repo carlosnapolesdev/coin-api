@@ -316,7 +316,11 @@ export class TransactionsService {
     transactionId: number,
     dto: UpdateTransactionDto,
   ): Promise<TransactionResponseDto> {
-    await this.findRequiredTransaction(userId, transactionId);
+    const existing = await this.findRequiredTransaction(userId, transactionId);
+
+    if (existing.transferGroupId) {
+      return this.updateTransfer(userId, existing, dto);
+    }
 
     if (dto.accountId !== undefined) {
       await this.findRequiredAccount(userId, dto.accountId, true);
@@ -349,6 +353,87 @@ export class TransactionsService {
       include: { account: true, userCategory: true },
     });
     return this.toResponse(updated, null);
+  }
+
+  private async updateTransfer(
+    userId: number,
+    existing: TransactionWithRelations,
+    dto: UpdateTransactionDto,
+  ): Promise<TransactionResponseDto> {
+    if (dto.accountId !== undefined || dto.destinationAccountId !== undefined) {
+      throw new BadRequestException(
+        'Changing accounts on an existing transfer is not supported',
+      );
+    }
+
+    const counterpart = await this.prisma.transaction.findFirst({
+      where: {
+        transferGroupId: existing.transferGroupId,
+        userId: BigInt(userId),
+        id: { not: existing.id },
+      },
+      include: { account: true, userCategory: true },
+    });
+    if (!counterpart) {
+      throw new NotFoundException('Transfer counterpart was not found');
+    }
+
+    const sourceLeg = existing.transferIn ? counterpart : existing;
+    const destinationLeg = existing.transferIn ? existing : counterpart;
+
+    const newAmount = dto.amount ?? sourceLeg.amount.toNumber();
+    const sourceCurrencyId = sourceLeg.account.currencyId;
+    const destinationCurrencyId = destinationLeg.account.currencyId;
+    const needsConversion =
+      sourceCurrencyId !== null &&
+      destinationCurrencyId !== null &&
+      sourceCurrencyId !== destinationCurrencyId;
+
+    let exchangeRate: Prisma.Decimal | null = null;
+    let destinationAmount = new Prisma.Decimal(newAmount);
+
+    if (needsConversion) {
+      const rate = dto.exchangeRate ?? sourceLeg.exchangeRate?.toNumber();
+      if (rate === undefined || rate <= 0) {
+        throw new BadRequestException(
+          'Exchange rate is required for cross-currency transfers',
+        );
+      }
+      exchangeRate = new Prisma.Decimal(rate);
+      destinationAmount = new Prisma.Decimal(newAmount)
+        .mul(exchangeRate)
+        .toDecimalPlaces(2);
+    }
+
+    const shared: Prisma.TransactionUpdateInput = {
+      updatedAt: new Date(),
+      exchangeRate,
+    };
+    if (dto.effectiveDate !== undefined)
+      shared.effectiveDate = new Date(dto.effectiveDate);
+    if (dto.payee !== undefined) shared.payee = dto.payee;
+    if (dto.paymentMethod !== undefined) shared.paymentMethod = dto.paymentMethod;
+    if (dto.memo !== undefined) shared.memo = dto.memo;
+    if (dto.status !== undefined) shared.status = dto.status;
+    if (dto.tags !== undefined) shared.tags = dto.tags;
+
+    const [updatedSourceLeg, updatedDestinationLeg] =
+      await this.prisma.$transaction(async (tx) => {
+        const updatedSrc = await tx.transaction.update({
+          where: { id: sourceLeg.id },
+          data: { ...shared, amount: new Prisma.Decimal(newAmount) },
+          include: { account: true, userCategory: true },
+        });
+        const updatedDst = await tx.transaction.update({
+          where: { id: destinationLeg.id },
+          data: { ...shared, amount: destinationAmount },
+          include: { account: true, userCategory: true },
+        });
+        return [updatedSrc, updatedDst];
+      });
+
+    const requested = existing.transferIn ? updatedDestinationLeg : updatedSourceLeg;
+    return this.toResponse(requested, null);
   }
 
   async deleteTransaction(
