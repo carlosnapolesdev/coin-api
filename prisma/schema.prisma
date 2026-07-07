@@ -154,6 +154,7 @@ model Transaction {
   transferGroupId   String?   @map("transfer_group_id") @db.Uuid
   transferAccountId BigInt?   @map("transfer_account_id")
   transferIn        Boolean?  @map("transfer_in")
+  exchangeRate      Decimal?  @map("exchange_rate") @db.Decimal(15, 6)
   createdAt     DateTime? @map("created_at") @db.Timestamptz(6)
   updatedAt     DateTime? @updatedAt @map("updated_at") @db.Timestamptz(6)
 
