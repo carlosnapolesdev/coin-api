@@ -146,4 +146,50 @@ describe('Currencies (e2e)', () => {
       expect(Array.isArray(res.body)).toBe(true);
     });
   });
+
+  describe('GET /api/users/me/currencies/exchange-rate', () => {
+    let otherCurrencyId: number;
+
+    beforeAll(async () => {
+      const res = await request(ctx.server).get('/api/currencies');
+      const all = res.body as Array<{ id: number }>;
+      const other = all.find((c) => c.id !== currencyId);
+      if (!other) throw new Error('Need at least 2 currencies in DB');
+      otherCurrencyId = other.id;
+
+      await request(ctx.server)
+        .post('/api/users/me/currencies')
+        .set(auth())
+        .send({ currencyId: otherCurrencyId, base: false, exchangeRate: 2 });
+    });
+
+    it('200 - returns the rate computed from the configured exchange rate', async () => {
+      const res = await request(ctx.server)
+        .get(
+          `/api/users/me/currencies/exchange-rate?from=${currencyId}&to=${otherCurrencyId}`,
+        )
+        .set(auth());
+
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({ rate: 2 });
+    });
+
+    it('200 - returns null when the target currency is not active for the user', async () => {
+      const res = await request(ctx.server)
+        .get(
+          `/api/users/me/currencies/exchange-rate?from=${currencyId}&to=999999`,
+        )
+        .set(auth());
+
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({ rate: null });
+    });
+
+    it('401 - no token', async () => {
+      const res = await request(ctx.server).get(
+        `/api/users/me/currencies/exchange-rate?from=${currencyId}&to=${otherCurrencyId}`,
+      );
+      expect(res.status).toBe(401);
+    });
+  });
 });

@@ -15,6 +15,7 @@ import {
 import { CurrentUser } from '../common/decorators';
 import type { AuthenticatedUser } from '../auth/strategies/jwt.strategy';
 import { CurrenciesService } from './currencies.service';
+import { CurrencyConversionService } from './currency-conversion.service';
 import { AddUserCurrencyDto } from './dto/add-user-currency.dto';
 import { ReplaceUserCurrenciesDto } from './dto/replace-user-currencies.dto';
 import { UpdateUserCurrencyDto } from './dto/update-user-currency.dto';
@@ -22,7 +23,24 @@ import type { UserCurrencyResponseDto } from './dto/user-currency-response.dto';
 
 @Controller('users/me/currencies')
 export class UserCurrenciesController {
-  constructor(private readonly currenciesService: CurrenciesService) {}
+  constructor(
+    private readonly currenciesService: CurrenciesService,
+    private readonly currencyConversionService: CurrencyConversionService,
+  ) {}
+
+  @Get('exchange-rate')
+  async getSuggestedExchangeRate(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query('from', ParseIntPipe) from: number,
+    @Query('to', ParseIntPipe) to: number,
+  ): Promise<{ rate: number | null }> {
+    const rate = await this.currencyConversionService.getRateBetween(
+      user.id,
+      from,
+      to,
+    );
+    return { rate };
+  }
 
   @Get()
   listUserCurrencies(
