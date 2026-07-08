@@ -1,98 +1,114 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# coin-api
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+REST API for **CoinFlow**, a personal finance management app. It handles authentication, multi-currency accounts, transactions (with CSV import/export), budgets, savings goals, recurring transactions, and reports.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+Built with [NestJS](https://nestjs.com) 11, [Prisma](https://www.prisma.io) 7, and PostgreSQL. This API replaced the original Spring Boot backend (`coinflow`) and keeps its database schema and API contract — the database is still named `coinflow`.
 
-## Description
+## Tech stack
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+- **Framework:** NestJS 11 (Express platform)
+- **Database:** PostgreSQL via Prisma 7 (`PrismaPg` driver adapter)
+- **Auth:** Passport JWT (HS256), bcrypt password hashing
+- **Validation:** class-validator DTOs + Joi for environment variables
+- **Logging:** nestjs-pino (pretty-printed in development)
+- **Docs:** Swagger (OpenAPI) at `/docs` — non-production only
+- **Tests:** Jest (unit + e2e with supertest)
 
-## Project setup
+## Requirements
+
+- Node.js >= 22.15 (see `.nvmrc`)
+- A running PostgreSQL instance
+
+## Getting started
 
 ```bash
-$ npm install
+# 1. Install dependencies
+npm install
+
+# 2. Configure environment
+cp .env.example .env    # then set DATABASE_URL and JWT_SECRET (min 32 chars)
+
+# 3. Apply database migrations
+npx prisma migrate deploy
+
+# 4. Seed the currency catalog and default categories (idempotent)
+npm run seed            # currencies require AAAPIS_TOKEN in .env
+
+# 5. Run in watch mode
+npm run start:dev
 ```
 
-## Compile and run the project
+The API listens on `http://localhost:8080` with global prefix `/api`. Swagger UI is available at `http://localhost:8080/docs`.
+
+## Environment variables
+
+Validated at startup by Joi (`src/config/env.validation.ts`).
+
+| Variable | Required | Default | Description |
+|---|---|---|---|
+| `DATABASE_URL` | yes | — | PostgreSQL connection string |
+| `JWT_SECRET` | yes | — | JWT signing secret, min 32 characters |
+| `JWT_EXPIRATION_MS` | no | `3600000` | Token lifetime (1 h) |
+| `JWT_REMEMBER_ME_EXPIRATION_MS` | no | `604800000` | "Remember me" token lifetime (7 d) |
+| `JWT_ISSUER` | no | `coinflow` | JWT `iss` claim |
+| `CORS_ORIGIN` | no | *(all)* | Comma-separated allowed origins |
+| `APP_URL` | no | `http://localhost:5173` | Frontend base URL used in password-reset links |
+| `AAAPIS_TOKEN` | no | — | aaapis.com token, used only by the currency seed |
+| `PORT` | no | `8080` | HTTP port |
+| `NODE_ENV` | no | `development` | `development` / `production` / `test` |
+
+## Scripts
+
+| Script | Description |
+|---|---|
+| `npm run start:dev` | Development server with watch mode |
+| `npm run build` / `npm run start:prod` | Compile and run the production build |
+| `npm test` / `npm run test:watch` / `npm run test:cov` | Unit tests (`src/**/*.spec.ts`) |
+| `npm run test:e2e` | End-to-end tests (`test/*.e2e-spec.ts`, run serially) |
+| `npm run lint` / `npm run format` | ESLint (with autofix) / Prettier |
+| `npm run seed` | CLI seeder (currencies, categories, translations) |
+
+## API overview
+
+All routes are prefixed with `/api` and require a JWT bearer token, except the ones marked public. Full request/response documentation lives in Swagger.
+
+| Resource | Base path | Endpoints |
+|---|---|---|
+| Auth | `/api/auth` | `register`, `login` (public, throttled), `me`, `forgot-password`, `reset-password` |
+| Currencies | `/api/currencies` | Catalog (public) |
+| User currencies | `/api/users/me/currencies` | CRUD, bulk replace (`PUT`), `exchange-rate` |
+| Categories | `/api/categories` | Localized catalog (public) |
+| User categories | `/api/users/me/categories` | CRUD over the user's category tree |
+| Accounts | `/api/users/me/accounts` | CRUD, net-worth `summary` |
+| Transactions | `/api/users/me/transactions` | CRUD, `search`, CSV `export`, CSV `import/preview` + `import/commit` |
+| Budgets | `/api/users/me/budgets` | CRUD |
+| Goals | `/api/users/me/goals` | CRUD |
+| Recurring | `/api/users/me/recurring` | CRUD, manual `:id/run` |
+| Reports | `/api/users/me/reports` | `income-expense`, `categories`, `net-worth` |
+| Health | `/api/health` | Terminus healthcheck (DB ping) |
+
+Errors follow a single JSON contract produced by the global exception filter:
+
+```json
+{ "timestamp", "status", "error", "message", "path", "validationErrors" }
+```
+
+## Background jobs
+
+A daily scheduler (`06:00` server time, `@nestjs/schedule`) materializes due recurring transactions. Any recurring rule can also be executed on demand via `POST /api/users/me/recurring/:id/run`.
+
+## Database & migrations
+
+Prisma 7 splits configuration: the CLI reads `prisma.config.ts` (datasource URL), while the runtime `PrismaService` connects through the `PrismaPg` adapter. Migrations live in `prisma/migrations` — create new ones with:
 
 ```bash
-# development
-$ npm run start
-
-# watch mode
-$ npm run start:dev
-
-# production mode
-$ npm run start:prod
+npx prisma migrate dev --name <change>
 ```
 
-## Run tests
+## Docker
+
+The multi-stage `Dockerfile` builds the app and runs `prisma migrate deploy` on container start. `docker-compose.yml` expects external `web` and `backend` networks and a `postgres` service provided by the host stack, with secrets (`POSTGRES_PASSWORD`, `JWT_SECRET`, …) injected via environment.
 
 ```bash
-# unit tests
-$ npm run test
-
-# e2e tests
-$ npm run test:e2e
-
-# test coverage
-$ npm run test:cov
+docker compose up -d --build
 ```
-
-## Deployment
-
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
-
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
-
-```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
-```
-
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
-
-## Resources
-
-Check out a few resources that may come in handy when working with NestJS:
-
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
-
-## Support
-
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
-
-## Stay in touch
-
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
-
-## License
-
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
