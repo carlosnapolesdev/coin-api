@@ -37,6 +37,7 @@ model User {
   goals                Goal[]
   passwordResetTokens  PasswordResetToken[]
   recurringTransactions RecurringTransaction[]
+  attachments         Attachment[]
 
   @@map("users")
 }
@@ -161,6 +162,7 @@ model Transaction {
   account      Account       @relation(fields: [accountId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_transaction_account")
   userCategory UserCategory? @relation(fields: [categoryId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_transaction_category")
   user         User          @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_transaction_user")
+  attachments Attachment[]
 
   @@index([accountId], map: "idx_transactions_account_id")
   @@index([effectiveDate], map: "idx_transactions_effective_date")
@@ -294,4 +296,22 @@ model FlywaySchemaHistory {
   @@index([success], map: "flyway_schema_history_s_idx")
   @@ignore
   @@map("flyway_schema_history")
+}
+
+model Attachment {
+  id            BigInt   @id @default(autoincrement())
+  userId        BigInt   @map("user_id")
+  transactionId BigInt   @map("transaction_id")
+  fileName      String   @map("file_name") @db.VarChar(255)
+  mimeType      String   @map("mime_type") @db.VarChar(80)
+  sizeBytes     Int      @map("size_bytes")
+  storageKey    String   @unique @map("storage_key") @db.VarChar(64)
+  createdAt     DateTime? @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user        User        @relation(fields: [userId],        references: [id], onDelete: Cascade)
+  transaction Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+
+  @@index([transactionId], map: "idx_attachments_transaction_id")
+  @@index([userId],        map: "idx_attachments_user_id")
+  @@map("attachments")
 }
