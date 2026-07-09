@@ -28,8 +28,18 @@ const EXPORT_COLUMNS = [
 ] as const;
 
 type TransactionWithRelations = Prisma.TransactionGetPayload<{
-  include: { account: true; userCategory: true };
+  include: {
+    account: true;
+    userCategory: true;
+    _count: { select: { attachments: true } };
+  };
 }>;
+
+const TX_RELATIONS_INCLUDE = {
+  account: true,
+  userCategory: true,
+  _count: { select: { attachments: true } },
+};
 
 @Injectable()
 export class TransactionsService {
@@ -47,7 +57,7 @@ export class TransactionsService {
       const account = await this.findRequiredAccount(userId, accountId);
       const transactions = await this.prisma.transaction.findMany({
         where: { userId: BigInt(userId), accountId: BigInt(accountId) },
-        include: { account: true, userCategory: true },
+        include: TX_RELATIONS_INCLUDE,
         orderBy: [{ effectiveDate: 'asc' }, { id: 'asc' }],
       });
       return this.buildResponsesWithRunningBalance(
@@ -62,7 +72,7 @@ export class TransactionsService {
           userId: BigInt(userId),
           effectiveDate: { gte: new Date(from), lte: new Date(to) },
         },
-        include: { account: true, userCategory: true },
+        include: TX_RELATIONS_INCLUDE,
         orderBy: [{ effectiveDate: 'desc' }, { id: 'desc' }],
       });
       return transactions.map((t) => this.toResponse(t, null));
@@ -70,7 +80,7 @@ export class TransactionsService {
 
     const transactions = await this.prisma.transaction.findMany({
       where: { userId: BigInt(userId) },
-      include: { account: true, userCategory: true },
+      include: TX_RELATIONS_INCLUDE,
       orderBy: [{ effectiveDate: 'desc' }, { id: 'desc' }],
     });
     return transactions.map((t) => this.toResponse(t, null));
@@ -90,7 +100,7 @@ export class TransactionsService {
       this.prisma.transaction.count({ where }),
       this.prisma.transaction.findMany({
         where,
-        include: { account: true, userCategory: true },
+        include: TX_RELATIONS_INCLUDE,
         orderBy: [{ effectiveDate: 'desc' }, { id: 'desc' }],
         skip: (page - 1) * pageSize,
         take: pageSize,
@@ -216,7 +226,7 @@ export class TransactionsService {
         createdAt: now,
         updatedAt: now,
       },
-      include: { account: true, userCategory: true },
+      include: TX_RELATIONS_INCLUDE,
     });
     return this.toResponse(transaction, null);
   }
@@ -293,7 +303,7 @@ export class TransactionsService {
           transferAccountId: BigInt(dto.destinationAccountId as number),
           transferIn: false,
         },
-        include: { account: true, userCategory: true },
+        include: TX_RELATIONS_INCLUDE,
       });
       await tx.transaction.create({
         data: {
@@ -303,7 +313,7 @@ export class TransactionsService {
           transferAccountId: BigInt(dto.accountId),
           transferIn: true,
         },
-        include: { account: true, userCategory: true },
+        include: TX_RELATIONS_INCLUDE,
       });
       return out;
     });
@@ -350,7 +360,7 @@ export class TransactionsService {
     const updated = await this.prisma.transaction.update({
       where: { id: BigInt(transactionId) },
       data,
-      include: { account: true, userCategory: true },
+      include: TX_RELATIONS_INCLUDE,
     });
     return this.toResponse(updated, null);
   }
@@ -372,7 +382,7 @@ export class TransactionsService {
         userId: BigInt(userId),
         id: { not: existing.id },
       },
-      include: { account: true, userCategory: true },
+      include: TX_RELATIONS_INCLUDE,
     });
     if (!counterpart) {
       throw new NotFoundException('Transfer counterpart was not found');
@@ -423,12 +433,12 @@ export class TransactionsService {
         const updatedSrc = await tx.transaction.update({
           where: { id: sourceLeg.id },
           data: { ...shared, amount: new Prisma.Decimal(newAmount) },
-          include: { account: true, userCategory: true },
+          include: TX_RELATIONS_INCLUDE,
         });
         const updatedDst = await tx.transaction.update({
           where: { id: destinationLeg.id },
           data: { ...shared, amount: destinationAmount },
-          include: { account: true, userCategory: true },
+          include: TX_RELATIONS_INCLUDE,
         });
         return [updatedSrc, updatedDst];
       });
@@ -506,6 +516,7 @@ export class TransactionsService {
       transferIn: t.transferIn ?? null,
       exchangeRate: t.exchangeRate ? t.exchangeRate.toNumber() : null,
       balance: balance !== null ? balance.toNumber() : null,
+      attachmentCount: t._count?.attachments ?? 0,
       createdAt: t.createdAt,
       updatedAt: t.updatedAt,
     };
@@ -517,7 +528,7 @@ export class TransactionsService {
   ): Promise<TransactionWithRelations> {
     const transaction = await this.prisma.transaction.findFirst({
       where: { id: BigInt(transactionId), userId: BigInt(userId) },
-      include: { account: true, userCategory: true },
+      include: TX_RELATIONS_INCLUDE,
     });
     if (!transaction) {
       throw new NotFoundException('Transaction was not found');

@@ -18,6 +18,7 @@ export interface TransactionResponseDto {
   transferIn: boolean | null;
   exchangeRate: number | null;
   balance: number | null;
+  attachmentCount: number;
   createdAt: Date | null;
   updatedAt: Date | null;
 }
