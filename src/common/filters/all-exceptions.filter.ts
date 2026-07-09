@@ -4,6 +4,7 @@ import {
   ExceptionFilter,
   HttpException,
   HttpStatus,
+  PayloadTooLargeException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { Request, Response } from 'express';
@@ -29,7 +30,10 @@ export class AllExceptionsFilter implements ExceptionFilter {
     let message: string;
     let validationErrors: Record<string, string> | null = null;
 
-    if (exception instanceof HttpException) {
+    if (exception instanceof PayloadTooLargeException) {
+      status = HttpStatus.BAD_REQUEST;
+      message = 'File exceeds the 5MB limit';
+    } else if (exception instanceof HttpException) {
       status = exception.getStatus();
       const body = exception.getResponse();
 
@@ -54,6 +58,13 @@ export class AllExceptionsFilter implements ExceptionFilter {
     ) {
       status = HttpStatus.CONFLICT;
       message = 'The request conflicts with an existing resource';
+    } else if (
+      exception instanceof Error &&
+      (exception as { name?: string }).name === 'MulterError' &&
+      (exception as { code?: string }).code === 'LIMIT_FILE_SIZE'
+    ) {
+      status = HttpStatus.BAD_REQUEST;
+      message = 'File exceeds the 5MB limit';
     } else {
       status = HttpStatus.INTERNAL_SERVER_ERROR;
       message = 'An unexpected error occurred';

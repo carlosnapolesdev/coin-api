@@ -17,6 +17,7 @@ import { envValidationSchema } from './config/env.validation';
 import { PrismaModule } from './prisma/prisma.module';
 import { MailModule } from './mail/mail.module';
 import { StorageModule } from './storage/storage.module';
+import { AttachmentsModule } from './attachments/attachments.module';
 
 @Module({
   imports: [
@@ -38,6 +39,7 @@ import { StorageModule } from './storage/storage.module';
     PrismaModule,
     MailModule,
     StorageModule,
+    AttachmentsModule,
     AuthModule,
     UsersModule,
     AccountsModule,
