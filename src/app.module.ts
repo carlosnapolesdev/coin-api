@@ -16,6 +16,7 @@ import { HealthModule } from './health/health.module';
 import { envValidationSchema } from './config/env.validation';
 import { PrismaModule } from './prisma/prisma.module';
 import { MailModule } from './mail/mail.module';
+import { StorageModule } from './storage/storage.module';
 
 @Module({
   imports: [
@@ -36,6 +37,7 @@ import { MailModule } from './mail/mail.module';
     ThrottlerModule.forRoot([{ ttl: 60000, limit: 100 }]),
     PrismaModule,
     MailModule,
+    StorageModule,
     AuthModule,
     UsersModule,
     AccountsModule,
