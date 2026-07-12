@@ -19,6 +19,7 @@ export interface TransactionResponseDto {
   exchangeRate: number | null;
   balance: number | null;
   attachmentCount: number;
+  splitCount: number;
   createdAt: Date | null;
   updatedAt: Date | null;
 }

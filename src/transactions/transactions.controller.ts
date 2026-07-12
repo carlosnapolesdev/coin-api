@@ -10,6 +10,7 @@ import {
   ParseIntPipe,
   Patch,
   Post,
+  Put,
   Query,
   Res,
   UploadedFile,
@@ -21,15 +22,17 @@ import type { Response } from 'express';
 import { CurrentUser } from '../common/decorators';
 import type { AuthenticatedUser } from '../auth/strategies/jwt.strategy';
 import { TransactionsService } from './transactions.service';
+import { SplitsService } from './splits.service';
 import { ImportService } from './import/import.service';
 import { ImportCommitDto } from './import/dto/import-commit.dto';
 import type { ColumnMapping, ImportPreviewResult } from './import/import.types';
 import {
   CreateTransactionDto,
   QueryTransactionsDto,
+  SetSplitsDto,
   UpdateTransactionDto,
 } from './dto';
-import type { TransactionResponseDto } from './dto';
+import type { SplitResponseDto, TransactionResponseDto } from './dto';
 import type { PaginatedResponse } from '../common/dto';
 
 const MAX_IMPORT_FILE_BYTES = 5 * 1024 * 1024;
@@ -39,6 +42,7 @@ export class TransactionsController {
   constructor(
     private readonly transactionsService: TransactionsService,
     private readonly importService: ImportService,
+    private readonly splitsService: SplitsService,
   ) {}
 
   @Get()
@@ -144,6 +148,23 @@ export class TransactionsController {
     @Param('transactionId', ParseIntPipe) transactionId: number,
   ): Promise<void> {
     return this.transactionsService.deleteTransaction(user.id, transactionId);
+  }
+
+  @Get(':transactionId/splits')
+  getSplits(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('transactionId', ParseIntPipe) transactionId: number,
+  ): Promise<SplitResponseDto[]> {
+    return this.splitsService.getSplits(user.id, transactionId);
+  }
+
+  @Put(':transactionId/splits')
+  setSplits(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('transactionId', ParseIntPipe) transactionId: number,
+    @Body() dto: SetSplitsDto,
+  ): Promise<TransactionResponseDto> {
+    return this.splitsService.setSplits(user.id, transactionId, dto);
   }
 
   private parseMapping(mappingRaw?: string): ColumnMapping | undefined {

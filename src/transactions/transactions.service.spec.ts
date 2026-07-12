@@ -724,6 +724,55 @@ describe('TransactionsService', () => {
         service.updateTransaction(1, 5, { categoryId: 9 }),
       ).rejects.toThrow(NotFoundException);
     });
+
+    it('rejects PATCH amount when the tx has splits', async () => {
+      const existingTx = {
+        ...makeTransaction(BigInt(5)),
+        _count: { attachments: 0, splits: 2 },
+      };
+      mockPrisma.transaction.findFirst.mockResolvedValue(existingTx);
+
+      await expect(
+        service.updateTransaction(1, 5, { amount: 50 }),
+      ).rejects.toThrow(/remove splits/i);
+    });
+
+    it('rejects PATCH category when the tx has splits', async () => {
+      const existingTx = {
+        ...makeTransaction(BigInt(5)),
+        _count: { attachments: 0, splits: 2 },
+      };
+      mockPrisma.transaction.findFirst.mockResolvedValue(existingTx);
+
+      await expect(
+        service.updateTransaction(1, 5, { categoryId: 7 }),
+      ).rejects.toThrow(/remove splits/i);
+    });
+
+    it('rejects PATCH type when the tx has splits', async () => {
+      const existingTx = {
+        ...makeTransaction(BigInt(5)),
+        _count: { attachments: 0, splits: 2 },
+      };
+      mockPrisma.transaction.findFirst.mockResolvedValue(existingTx);
+
+      await expect(
+        service.updateTransaction(1, 5, { type: TransactionType.INCOME }),
+      ).rejects.toThrow(/remove splits/i);
+    });
+
+    it('allows PATCH of non-protected fields when the tx has splits', async () => {
+      const existingTx = {
+        ...makeTransaction(BigInt(5)),
+        _count: { attachments: 0, splits: 2 },
+      };
+      mockPrisma.transaction.findFirst.mockResolvedValue(existingTx);
+      mockPrisma.transaction.update.mockResolvedValue(existingTx);
+
+      await expect(
+        service.updateTransaction(1, 5, { payee: 'Updated', memo: 'm' }),
+      ).resolves.toBeDefined();
+    });
   });
 
   describe('updateTransaction — TRANSFER', () => {

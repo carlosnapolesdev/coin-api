@@ -31,14 +31,14 @@ type TransactionWithRelations = Prisma.TransactionGetPayload<{
   include: {
     account: true;
     userCategory: true;
-    _count: { select: { attachments: true } };
+    _count: { select: { attachments: true; splits: true } };
   };
 }>;
 
 const TX_RELATIONS_INCLUDE = {
   account: true,
   userCategory: true,
-  _count: { select: { attachments: true } },
+  _count: { select: { attachments: true, splits: true } },
 };
 
 @Injectable()
@@ -332,6 +332,18 @@ export class TransactionsService {
       return this.updateTransfer(userId, existing, dto);
     }
 
+    if ((existing._count?.splits ?? 0) > 0) {
+      if (
+        dto.amount !== undefined ||
+        dto.categoryId !== undefined ||
+        dto.type !== undefined
+      ) {
+        throw new BadRequestException(
+          'Remove splits before changing amount, category or type',
+        );
+      }
+    }
+
     if (dto.accountId !== undefined) {
       await this.findRequiredAccount(userId, dto.accountId, true);
     }
@@ -517,6 +529,7 @@ export class TransactionsService {
       exchangeRate: t.exchangeRate ? t.exchangeRate.toNumber() : null,
       balance: balance !== null ? balance.toNumber() : null,
       attachmentCount: t._count?.attachments ?? 0,
+      splitCount: t._count?.splits ?? 0,
       createdAt: t.createdAt,
       updatedAt: t.updatedAt,
     };
