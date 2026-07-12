@@ -163,6 +163,7 @@ model Transaction {
   userCategory UserCategory? @relation(fields: [categoryId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_transaction_category")
   user         User          @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_transaction_user")
   attachments Attachment[]
+  splits       TransactionSplit[]
 
   @@index([accountId], map: "idx_transactions_account_id")
   @@index([effectiveDate], map: "idx_transactions_effective_date")
@@ -192,6 +193,7 @@ model UserCategory {
   user            User           @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_uc_user_category")
   budgets         Budget[]
   recurringTransactions RecurringTransaction[]
+  splits          TransactionSplit[]
 
   @@map("user_categories")
 }
@@ -314,4 +316,20 @@ model Attachment {
   @@index([transactionId], map: "idx_attachments_transaction_id")
   @@index([userId],        map: "idx_attachments_user_id")
   @@map("attachments")
+}
+
+model TransactionSplit {
+  id            BigInt    @id @default(autoincrement())
+  transactionId BigInt    @map("transaction_id")
+  categoryId    BigInt    @map("category_id")
+  amount        Decimal   @db.Decimal(15, 2)
+  memo          String?
+  createdAt     DateTime? @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  transaction Transaction  @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  category    UserCategory @relation(fields: [categoryId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([transactionId], map: "idx_transaction_splits_transaction_id")
+  @@index([categoryId], map: "idx_transaction_splits_category_id")
+  @@map("transaction_splits")
 }
