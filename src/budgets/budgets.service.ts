@@ -21,18 +21,37 @@ export class BudgetsService {
     const { gte, lte } = this.currentMonthRange();
     return Promise.all(
       budgets.map(async (b) => {
-        const agg = await this.prisma.transaction.aggregate({
-          _sum: { amount: true },
-          where: {
-            userId: BigInt(userId),
-            categoryId: b.categoryId,
-            type: TransactionType.EXPENSE,
-            effectiveDate: { gte, lte },
-            account: { excludeFromBudget: false },
-          },
-        });
+        const txWhere = {
+          userId: BigInt(userId),
+          categoryId: b.categoryId,
+          type: TransactionType.EXPENSE,
+          effectiveDate: { gte, lte },
+          account: { excludeFromBudget: false },
+        };
+        const [txAgg, splitAgg] = await Promise.all([
+          this.prisma.transaction.aggregate({
+            _sum: { amount: true },
+            where: txWhere,
+          }),
+          this.prisma.transactionSplit.aggregate({
+            _sum: { amount: true },
+            where: {
+              categoryId: b.categoryId,
+              transaction: {
+                userId: BigInt(userId),
+                type: TransactionType.EXPENSE,
+                effectiveDate: { gte, lte },
+                account: { excludeFromBudget: false },
+              },
+            },
+          }),
+        ]);
         const amount = b.amount.toNumber();
-        const spent = agg._sum.amount ? agg._sum.amount.toNumber() : 0;
+        const txSum = txAgg._sum.amount ? txAgg._sum.amount.toNumber() : 0;
+        const splitSum = splitAgg._sum.amount
+          ? splitAgg._sum.amount.toNumber()
+          : 0;
+        const spent = txSum + splitSum;
         return {
           id: Number(b.id),
           categoryId: Number(b.categoryId),

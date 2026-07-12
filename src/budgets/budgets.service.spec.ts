@@ -40,6 +40,7 @@ describe('BudgetsService', () => {
     },
     userCategory: { findFirst: jest.fn() },
     transaction: { aggregate: jest.fn() },
+    transactionSplit: { aggregate: jest.fn() },
   };
 
   beforeEach(async () => {
@@ -60,6 +61,9 @@ describe('BudgetsService', () => {
       mockPrisma.transaction.aggregate.mockResolvedValue({
         _sum: { amount: new Prisma.Decimal(150) },
       });
+      mockPrisma.transactionSplit.aggregate.mockResolvedValue({
+        _sum: { amount: null },
+      });
 
       const res = await service.listBudgets(1);
 
@@ -71,6 +75,9 @@ describe('BudgetsService', () => {
     it('treats a null aggregate sum as zero spent', async () => {
       mockPrisma.budget.findMany.mockResolvedValue([makeBudget(BigInt(1))]);
       mockPrisma.transaction.aggregate.mockResolvedValue({
+        _sum: { amount: null },
+      });
+      mockPrisma.transactionSplit.aggregate.mockResolvedValue({
         _sum: { amount: null },
       });
 
@@ -86,6 +93,9 @@ describe('BudgetsService', () => {
       mockPrisma.transaction.aggregate.mockResolvedValue({
         _sum: { amount: new Prisma.Decimal(0) },
       });
+      mockPrisma.transactionSplit.aggregate.mockResolvedValue({
+        _sum: { amount: null },
+      });
 
       await service.listBudgets(1);
 
@@ -96,6 +106,46 @@ describe('BudgetsService', () => {
           }),
         }),
       );
+      expect(mockPrisma.transactionSplit.aggregate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            categoryId: BigInt(9),
+            transaction: expect.objectContaining({
+              account: { excludeFromBudget: false },
+            }),
+          }),
+        }),
+      );
+    });
+
+    it('adds split amounts to the parent-tx aggregate so split transactions count toward the budget', async () => {
+      mockPrisma.budget.findMany.mockResolvedValue([makeBudget(BigInt(1))]);
+      mockPrisma.transaction.aggregate.mockResolvedValue({
+        _sum: { amount: new Prisma.Decimal(30) },
+      });
+      mockPrisma.transactionSplit.aggregate.mockResolvedValue({
+        _sum: { amount: new Prisma.Decimal(45) },
+      });
+
+      const res = await service.listBudgets(1);
+
+      expect(res[0].spent).toBe(75);
+      expect(res[0].remaining).toBe(125);
+      expect(res[0].percentUsed).toBe(38);
+    });
+
+    it('treats a null split aggregate sum as zero', async () => {
+      mockPrisma.budget.findMany.mockResolvedValue([makeBudget(BigInt(1))]);
+      mockPrisma.transaction.aggregate.mockResolvedValue({
+        _sum: { amount: new Prisma.Decimal(20) },
+      });
+      mockPrisma.transactionSplit.aggregate.mockResolvedValue({
+        _sum: { amount: null },
+      });
+
+      const res = await service.listBudgets(1);
+
+      expect(res[0].spent).toBe(20);
     });
 
     it('returns an empty array when the user has no budgets', async () => {
@@ -115,6 +165,9 @@ describe('BudgetsService', () => {
       mockPrisma.budget.create.mockResolvedValue(undefined);
       mockPrisma.budget.findMany.mockResolvedValue([makeBudget(BigInt(1))]);
       mockPrisma.transaction.aggregate.mockResolvedValue({
+        _sum: { amount: null },
+      });
+      mockPrisma.transactionSplit.aggregate.mockResolvedValue({
         _sum: { amount: null },
       });
 
@@ -150,6 +203,9 @@ describe('BudgetsService', () => {
       mockPrisma.budget.update.mockResolvedValue(undefined);
       mockPrisma.budget.findMany.mockResolvedValue([makeBudget(BigInt(1))]);
       mockPrisma.transaction.aggregate.mockResolvedValue({
+        _sum: { amount: null },
+      });
+      mockPrisma.transactionSplit.aggregate.mockResolvedValue({
         _sum: { amount: null },
       });
 

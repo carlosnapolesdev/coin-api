@@ -91,21 +91,25 @@ describe('ReportsService', () => {
           amount: new Prisma.Decimal(100),
           categoryId: BigInt(1),
           userCategory: { name: 'Groceries' },
+          splits: [],
         },
         {
           amount: new Prisma.Decimal(50),
           categoryId: BigInt(1),
           userCategory: { name: 'Groceries' },
+          splits: [],
         },
         {
           amount: new Prisma.Decimal(300),
           categoryId: BigInt(2),
           userCategory: { name: 'Rent' },
+          splits: [],
         },
         {
           amount: new Prisma.Decimal(20),
           categoryId: null,
           userCategory: null,
+          splits: [],
         },
       ]);
 
@@ -115,6 +119,35 @@ describe('ReportsService', () => {
         { categoryId: 2, categoryName: 'Rent', total: 300 },
         { categoryId: 1, categoryName: 'Groceries', total: 150 },
         { categoryId: null, categoryName: 'Uncategorized', total: 20 },
+      ]);
+    });
+
+    it('aggregates by splits when a tx is split between categories', async () => {
+      mockPrisma.transaction.findMany.mockResolvedValue([
+        {
+          amount: new Prisma.Decimal(100),
+          categoryId: null,
+          userCategory: null,
+          splits: [
+            {
+              amount: new Prisma.Decimal(60),
+              categoryId: BigInt(1),
+              category: { name: 'Food' },
+            },
+            {
+              amount: new Prisma.Decimal(40),
+              categoryId: BigInt(2),
+              category: { name: 'Household' },
+            },
+          ],
+        },
+      ]);
+
+      const res = await service.categoryBreakdown(1, {});
+
+      expect(res).toEqual([
+        { categoryId: 1, categoryName: 'Food', total: 60 },
+        { categoryId: 2, categoryName: 'Household', total: 40 },
       ]);
     });
   });

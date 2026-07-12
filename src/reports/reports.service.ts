@@ -59,19 +59,40 @@ export class ReportsService {
         amount: true,
         categoryId: true,
         userCategory: { select: { name: true } },
+        splits: {
+          select: {
+            amount: true,
+            categoryId: true,
+            category: { select: { name: true } },
+          },
+        },
       },
     });
     const map = new Map<string, CategoryTotalDto>();
     for (const r of rows) {
-      const key = r.categoryId ? String(r.categoryId) : 'none';
-      const name = r.userCategory?.name ?? 'Uncategorized';
-      const entry = map.get(key) ?? {
-        categoryId: r.categoryId ? Number(r.categoryId) : null,
-        categoryName: name,
-        total: 0,
-      };
-      entry.total += r.amount.toNumber();
-      map.set(key, entry);
+      if (r.splits.length > 0) {
+        for (const split of r.splits) {
+          const key = String(split.categoryId);
+          const name = split.category?.name ?? 'Uncategorized';
+          const entry = map.get(key) ?? {
+            categoryId: Number(split.categoryId),
+            categoryName: name,
+            total: 0,
+          };
+          entry.total += split.amount.toNumber();
+          map.set(key, entry);
+        }
+      } else {
+        const key = r.categoryId ? String(r.categoryId) : 'none';
+        const name = r.userCategory?.name ?? 'Uncategorized';
+        const entry = map.get(key) ?? {
+          categoryId: r.categoryId ? Number(r.categoryId) : null,
+          categoryName: name,
+          total: 0,
+        };
+        entry.total += r.amount.toNumber();
+        map.set(key, entry);
+      }
     }
     return Array.from(map.values()).sort((a, b) => b.total - a.total);
   }
