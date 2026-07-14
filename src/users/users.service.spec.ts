@@ -111,6 +111,60 @@ describe('UsersService', () => {
     );
   });
 
+  describe('updateOnboarding', () => {
+    it('merges the patch over the existing state and persists it', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({
+        onboardingState: {
+          coachSeen: ['dashboard'],
+          checklistDismissed: false,
+        },
+      });
+      mockPrisma.user.update.mockResolvedValue({
+        onboardingState: {
+          coachSeen: ['dashboard'],
+          checklistDismissed: true,
+        },
+      });
+
+      const result = await service.updateOnboarding(1, {
+        checklistDismissed: true,
+      });
+
+      expect(mockPrisma.user.update).toHaveBeenCalledWith({
+        where: { id: 1n },
+        data: expect.objectContaining({
+          onboardingState: {
+            coachSeen: ['dashboard'],
+            checklistDismissed: true,
+          },
+        }),
+      });
+      expect(result).toEqual({
+        coachSeen: ['dashboard'],
+        checklistDismissed: true,
+      });
+    });
+
+    it('starts from an empty object when there is no prior state', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({ onboardingState: null });
+      mockPrisma.user.update.mockResolvedValue({
+        onboardingState: { reportsVisited: true },
+      });
+
+      const result = await service.updateOnboarding(1, {
+        reportsVisited: true,
+      });
+
+      expect(mockPrisma.user.update).toHaveBeenCalledWith({
+        where: { id: 1n },
+        data: expect.objectContaining({
+          onboardingState: { reportsVisited: true },
+        }),
+      });
+      expect(result).toEqual({ reportsVisited: true });
+    });
+  });
+
   describe('changePassword', () => {
     it('throws NotFoundException when the user has no password hash', async () => {
       mockPrisma.user.findUnique.mockResolvedValue(null);

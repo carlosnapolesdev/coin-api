@@ -9,7 +9,11 @@ import type {
   OnboardingState,
   UserProfileDto,
 } from '../auth/dto/auth-response.dto';
-import type { ChangePasswordDto, UpdateProfileDto } from './dto';
+import type {
+  ChangePasswordDto,
+  UpdateOnboardingDto,
+  UpdateProfileDto,
+} from './dto';
 
 @Injectable()
 export class UsersService {
@@ -40,6 +44,28 @@ export class UsersService {
       language: user.language ?? UsersService.DEFAULT_LANGUAGE,
       onboardingState: this.normalizeOnboarding(user.onboardingState),
     };
+  }
+
+  async updateOnboarding(
+    userId: number,
+    dto: UpdateOnboardingDto,
+  ): Promise<OnboardingState> {
+    const existing = await this.prisma.user.findUnique({
+      where: { id: BigInt(userId) },
+      select: { onboardingState: true },
+    });
+    const current = (existing?.onboardingState ?? {}) as Record<
+      string,
+      unknown
+    >;
+    const merged = { ...current, ...dto };
+
+    const updated = await this.prisma.user.update({
+      where: { id: BigInt(userId) },
+      data: { onboardingState: merged, updatedAt: new Date() },
+    });
+
+    return updated.onboardingState as unknown as OnboardingState;
   }
 
   private normalizeOnboarding(raw: unknown): OnboardingState {
