@@ -64,6 +64,51 @@ describe('UsersService', () => {
         },
       });
     });
+
+    it('uses defaults for malformed onboarding field types', async () => {
+      mockPrisma.user.update.mockResolvedValue({
+        id: 1n,
+        fullName: 'User Name',
+        email: 'user@test.com',
+        username: 'user1',
+        language: 'en',
+        onboardingState: {
+          coachSeen: ['dashboard', 1],
+          checklistDismissed: 'true',
+          celebrationShown: 1,
+          reportsVisited: {},
+          tourVersion: '2',
+        },
+      });
+
+      const result = await service.updateProfile(1, {});
+
+      expect(result.onboardingState).toEqual({
+        coachSeen: [],
+        checklistDismissed: false,
+        celebrationShown: false,
+        reportsVisited: false,
+        tourVersion: 0,
+      });
+    });
+
+    it.each([-1, 1.5])(
+      'uses the default for invalid tourVersion %s',
+      async (tourVersion) => {
+        mockPrisma.user.update.mockResolvedValue({
+          id: 1n,
+          fullName: 'User Name',
+          email: 'user@test.com',
+          username: 'user1',
+          language: 'en',
+          onboardingState: { tourVersion },
+        });
+
+        const result = await service.updateProfile(1, {});
+
+        expect(result.onboardingState.tourVersion).toBe(0);
+      },
+    );
   });
 
   describe('changePassword', () => {

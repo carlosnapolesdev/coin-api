@@ -98,6 +98,47 @@ describe('AuthService', () => {
         }),
       );
     });
+
+    it('uses defaults for malformed onboarding field types', () => {
+      const result = service.getProfile({
+        id: 1,
+        email: 'user@test.com',
+        fullName: 'Test User',
+        username: 'test-user',
+        language: 'en',
+        onboardingState: {
+          coachSeen: ['dashboard', 1],
+          checklistDismissed: 'true',
+          celebrationShown: 1,
+          reportsVisited: {},
+          tourVersion: '2',
+        },
+      });
+
+      expect(result.onboardingState).toEqual({
+        coachSeen: [],
+        checklistDismissed: false,
+        celebrationShown: false,
+        reportsVisited: false,
+        tourVersion: 0,
+      });
+    });
+
+    it.each([-1, 1.5])(
+      'uses the default for invalid tourVersion %s',
+      (tourVersion) => {
+        const result = service.getProfile({
+          id: 1,
+          email: 'user@test.com',
+          fullName: 'Test User',
+          username: 'test-user',
+          language: 'en',
+          onboardingState: { tourVersion },
+        });
+
+        expect(result.onboardingState.tourVersion).toBe(0);
+      },
+    );
   });
 
   describe('forgotPassword', () => {

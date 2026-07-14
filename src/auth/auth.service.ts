@@ -223,13 +223,36 @@ export class AuthService {
   }
 
   private normalizeOnboarding(raw: unknown): OnboardingState {
-    const value = (raw ?? {}) as Partial<OnboardingState>;
+    const value =
+      typeof raw === 'object' && raw !== null && !Array.isArray(raw)
+        ? (raw as Record<string, unknown>)
+        : {};
+    const coachSeen = value.coachSeen;
+    const tourVersion = value.tourVersion;
     return {
-      coachSeen: Array.isArray(value.coachSeen) ? value.coachSeen : [],
-      checklistDismissed: value.checklistDismissed ?? false,
-      celebrationShown: value.celebrationShown ?? false,
-      reportsVisited: value.reportsVisited ?? false,
-      tourVersion: value.tourVersion ?? 0,
+      coachSeen:
+        Array.isArray(coachSeen) &&
+        coachSeen.every((item) => typeof item === 'string')
+          ? coachSeen
+          : [],
+      checklistDismissed:
+        typeof value.checklistDismissed === 'boolean'
+          ? value.checklistDismissed
+          : false,
+      celebrationShown:
+        typeof value.celebrationShown === 'boolean'
+          ? value.celebrationShown
+          : false,
+      reportsVisited:
+        typeof value.reportsVisited === 'boolean'
+          ? value.reportsVisited
+          : false,
+      tourVersion:
+        typeof tourVersion === 'number' &&
+        Number.isInteger(tourVersion) &&
+        tourVersion >= 0
+          ? tourVersion
+          : 0,
     };
   }
 
