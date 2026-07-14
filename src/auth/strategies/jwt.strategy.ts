@@ -17,6 +17,7 @@ export interface AuthenticatedUser {
   fullName: string | null;
   username: string | null;
   language: string | null;
+  onboardingState: unknown;
 }
 
 @Injectable()
@@ -49,6 +50,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       fullName: user.fullName,
       username: user.username,
       language: user.language,
+      onboardingState: user.onboardingState ?? null,
     };
   }
 }

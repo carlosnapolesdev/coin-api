@@ -5,7 +5,10 @@ import {
 } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../prisma/prisma.service';
-import type { UserProfileDto } from '../auth/dto/auth-response.dto';
+import type {
+  OnboardingState,
+  UserProfileDto,
+} from '../auth/dto/auth-response.dto';
 import type { ChangePasswordDto, UpdateProfileDto } from './dto';
 
 @Injectable()
@@ -35,6 +38,18 @@ export class UsersService {
       email: user.email ?? '',
       username: user.username,
       language: user.language ?? UsersService.DEFAULT_LANGUAGE,
+      onboardingState: this.normalizeOnboarding(user.onboardingState),
+    };
+  }
+
+  private normalizeOnboarding(raw: unknown): OnboardingState {
+    const value = (raw ?? {}) as Partial<OnboardingState>;
+    return {
+      coachSeen: Array.isArray(value.coachSeen) ? value.coachSeen : [],
+      checklistDismissed: value.checklistDismissed ?? false,
+      celebrationShown: value.celebrationShown ?? false,
+      reportsVisited: value.reportsVisited ?? false,
+      tourVersion: value.tourVersion ?? 0,
     };
   }
 

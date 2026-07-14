@@ -15,6 +15,7 @@ import { MailService } from '../mail/mail.service';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   AuthResponseDto,
+  OnboardingState,
   RegisterResponseDto,
   UserProfileDto,
 } from './dto/auth-response.dto';
@@ -215,6 +216,20 @@ export class AuthService {
       email: authenticatedUser.email,
       username: authenticatedUser.username,
       language: authenticatedUser.language ?? AuthService.DEFAULT_LANGUAGE,
+      onboardingState: this.normalizeOnboarding(
+        authenticatedUser.onboardingState,
+      ),
+    };
+  }
+
+  private normalizeOnboarding(raw: unknown): OnboardingState {
+    const value = (raw ?? {}) as Partial<OnboardingState>;
+    return {
+      coachSeen: Array.isArray(value.coachSeen) ? value.coachSeen : [],
+      checklistDismissed: value.checklistDismissed ?? false,
+      celebrationShown: value.celebrationShown ?? false,
+      reportsVisited: value.reportsVisited ?? false,
+      tourVersion: value.tourVersion ?? 0,
     };
   }
 
@@ -241,6 +256,7 @@ export class AuthService {
       email: user.email ?? '',
       username: user.username,
       language: user.language ?? AuthService.DEFAULT_LANGUAGE,
+      onboardingState: this.normalizeOnboarding(user.onboardingState),
     };
   }
 }

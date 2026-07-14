@@ -34,6 +34,7 @@ describe('UsersService', () => {
         email: 'user@test.com',
         username: 'user1',
         language: 'es',
+        onboardingState: null,
       });
 
       const result = await service.updateProfile(1, {
@@ -54,6 +55,13 @@ describe('UsersService', () => {
         email: 'user@test.com',
         username: 'user1',
         language: 'es',
+        onboardingState: {
+          coachSeen: [],
+          checklistDismissed: false,
+          celebrationShown: false,
+          reportsVisited: false,
+          tourVersion: 0,
+        },
       });
     });
   });

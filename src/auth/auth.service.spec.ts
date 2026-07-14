@@ -47,6 +47,59 @@ describe('AuthService', () => {
     jest.clearAllMocks();
   });
 
+  describe('getProfile', () => {
+    it('returns default onboarding state when none is stored', () => {
+      expect(
+        service.getProfile({
+          id: 1,
+          email: 'user@test.com',
+          fullName: 'Test User',
+          username: 'test-user',
+          language: 'en',
+          onboardingState: null,
+        }),
+      ).toEqual({
+        id: 1,
+        fullName: 'Test User',
+        email: 'user@test.com',
+        username: 'test-user',
+        language: 'en',
+        onboardingState: {
+          coachSeen: [],
+          checklistDismissed: false,
+          celebrationShown: false,
+          reportsVisited: false,
+          tourVersion: 0,
+        },
+      });
+    });
+
+    it('returns the stored onboarding state', () => {
+      const onboardingState = {
+        coachSeen: ['dashboard'],
+        checklistDismissed: true,
+        celebrationShown: true,
+        reportsVisited: true,
+        tourVersion: 2,
+      };
+
+      expect(
+        service.getProfile({
+          id: 1,
+          email: 'user@test.com',
+          fullName: 'Test User',
+          username: 'test-user',
+          language: 'en',
+          onboardingState,
+        }),
+      ).toEqual(
+        expect.objectContaining({
+          onboardingState,
+        }),
+      );
+    });
+  });
+
   describe('forgotPassword', () => {
     it('does not throw and does not send an email when the email is unknown', async () => {
       mockPrisma.user.findFirst.mockResolvedValue(null);
