@@ -3,6 +3,7 @@ import {
   ConflictException,
   NotFoundException,
 } from '@nestjs/common';
+import { Readable } from 'node:stream';
 import { Test, TestingModule } from '@nestjs/testing';
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
@@ -45,6 +46,7 @@ const makeFile = (mime: string, bytes: Buffer): Express.Multer.File => ({
   destination: '',
   filename: '',
   path: '',
+  stream: Readable.from(bytes),
 });
 
 describe('AttachmentsService', () => {
