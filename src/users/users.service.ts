@@ -14,6 +14,7 @@ import type {
   UpdateOnboardingDto,
   UpdateProfileDto,
 } from './dto';
+import { normalizeOnboardingState } from '../common/onboarding-state';
 
 @Injectable()
 export class UsersService {
@@ -42,7 +43,7 @@ export class UsersService {
       email: user.email ?? '',
       username: user.username,
       language: user.language ?? UsersService.DEFAULT_LANGUAGE,
-      onboardingState: this.normalizeOnboarding(user.onboardingState),
+      onboardingState: normalizeOnboardingState(user.onboardingState),
     };
   }
 
@@ -59,48 +60,14 @@ export class UsersService {
       unknown
     >;
     const merged = { ...current, ...dto };
-    const normalized = this.normalizeOnboarding(merged);
+    const normalized = normalizeOnboardingState(merged);
 
     const updated = await this.prisma.user.update({
       where: { id: BigInt(userId) },
       data: { onboardingState: { ...normalized }, updatedAt: new Date() },
     });
 
-    return this.normalizeOnboarding(updated.onboardingState);
-  }
-
-  private normalizeOnboarding(raw: unknown): OnboardingState {
-    const value =
-      typeof raw === 'object' && raw !== null && !Array.isArray(raw)
-        ? (raw as Record<string, unknown>)
-        : {};
-    const coachSeen = value.coachSeen;
-    const tourVersion = value.tourVersion;
-    return {
-      coachSeen:
-        Array.isArray(coachSeen) &&
-        coachSeen.every((item) => typeof item === 'string')
-          ? coachSeen
-          : [],
-      checklistDismissed:
-        typeof value.checklistDismissed === 'boolean'
-          ? value.checklistDismissed
-          : false,
-      celebrationShown:
-        typeof value.celebrationShown === 'boolean'
-          ? value.celebrationShown
-          : false,
-      reportsVisited:
-        typeof value.reportsVisited === 'boolean'
-          ? value.reportsVisited
-          : false,
-      tourVersion:
-        typeof tourVersion === 'number' &&
-        Number.isInteger(tourVersion) &&
-        tourVersion >= 0
-          ? tourVersion
-          : 0,
-    };
+    return normalizeOnboardingState(updated.onboardingState);
   }
 
   async changePassword(userId: number, dto: ChangePasswordDto): Promise<void> {

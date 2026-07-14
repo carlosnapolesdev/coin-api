@@ -15,10 +15,10 @@ import { MailService } from '../mail/mail.service';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   AuthResponseDto,
-  OnboardingState,
   RegisterResponseDto,
   UserProfileDto,
 } from './dto/auth-response.dto';
+import { normalizeOnboardingState } from '../common/onboarding-state';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 import type { ForgotPasswordDto, ResetPasswordDto } from '../users/dto';
@@ -216,43 +216,9 @@ export class AuthService {
       email: authenticatedUser.email,
       username: authenticatedUser.username,
       language: authenticatedUser.language ?? AuthService.DEFAULT_LANGUAGE,
-      onboardingState: this.normalizeOnboarding(
+      onboardingState: normalizeOnboardingState(
         authenticatedUser.onboardingState,
       ),
-    };
-  }
-
-  private normalizeOnboarding(raw: unknown): OnboardingState {
-    const value =
-      typeof raw === 'object' && raw !== null && !Array.isArray(raw)
-        ? (raw as Record<string, unknown>)
-        : {};
-    const coachSeen = value.coachSeen;
-    const tourVersion = value.tourVersion;
-    return {
-      coachSeen:
-        Array.isArray(coachSeen) &&
-        coachSeen.every((item) => typeof item === 'string')
-          ? coachSeen
-          : [],
-      checklistDismissed:
-        typeof value.checklistDismissed === 'boolean'
-          ? value.checklistDismissed
-          : false,
-      celebrationShown:
-        typeof value.celebrationShown === 'boolean'
-          ? value.celebrationShown
-          : false,
-      reportsVisited:
-        typeof value.reportsVisited === 'boolean'
-          ? value.reportsVisited
-          : false,
-      tourVersion:
-        typeof tourVersion === 'number' &&
-        Number.isInteger(tourVersion) &&
-        tourVersion >= 0
-          ? tourVersion
-          : 0,
     };
   }
 
@@ -279,7 +245,7 @@ export class AuthService {
       email: user.email ?? '',
       username: user.username,
       language: user.language ?? AuthService.DEFAULT_LANGUAGE,
-      onboardingState: this.normalizeOnboarding(user.onboardingState),
+      onboardingState: normalizeOnboardingState(user.onboardingState),
     };
   }
 }
