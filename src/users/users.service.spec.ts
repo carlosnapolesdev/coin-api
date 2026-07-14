@@ -136,12 +136,18 @@ describe('UsersService', () => {
           onboardingState: {
             coachSeen: ['dashboard'],
             checklistDismissed: true,
+            celebrationShown: false,
+            reportsVisited: false,
+            tourVersion: 0,
           },
         }),
       });
       expect(result).toEqual({
         coachSeen: ['dashboard'],
         checklistDismissed: true,
+        celebrationShown: false,
+        reportsVisited: false,
+        tourVersion: 0,
       });
     });
 
@@ -158,10 +164,22 @@ describe('UsersService', () => {
       expect(mockPrisma.user.update).toHaveBeenCalledWith({
         where: { id: 1n },
         data: expect.objectContaining({
-          onboardingState: { reportsVisited: true },
+          onboardingState: {
+            coachSeen: [],
+            checklistDismissed: false,
+            celebrationShown: false,
+            reportsVisited: true,
+            tourVersion: 0,
+          },
         }),
       });
-      expect(result).toEqual({ reportsVisited: true });
+      expect(result).toEqual({
+        coachSeen: [],
+        checklistDismissed: false,
+        celebrationShown: false,
+        reportsVisited: true,
+        tourVersion: 0,
+      });
     });
   });
 

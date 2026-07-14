@@ -59,13 +59,14 @@ export class UsersService {
       unknown
     >;
     const merged = { ...current, ...dto };
+    const normalized = this.normalizeOnboarding(merged);
 
     const updated = await this.prisma.user.update({
       where: { id: BigInt(userId) },
-      data: { onboardingState: merged, updatedAt: new Date() },
+      data: { onboardingState: { ...normalized }, updatedAt: new Date() },
     });
 
-    return updated.onboardingState as unknown as OnboardingState;
+    return this.normalizeOnboarding(updated.onboardingState);
   }
 
   private normalizeOnboarding(raw: unknown): OnboardingState {
