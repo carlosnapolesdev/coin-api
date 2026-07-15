@@ -1,4 +1,4 @@
-import { NotFoundException, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../prisma/prisma.service';
@@ -195,7 +195,7 @@ describe('UsersService', () => {
       ).rejects.toThrow(NotFoundException);
     });
 
-    it('rejects change when current password is wrong', async () => {
+    it('rejects change with a bad request when current password is wrong', async () => {
       mockPrisma.user.findUnique.mockResolvedValue({
         passwordHash: await bcrypt.hash('right', 10),
       });
@@ -205,7 +205,7 @@ describe('UsersService', () => {
           currentPassword: 'wrong',
           newPassword: 'NewPass1',
         }),
-      ).rejects.toThrow(UnauthorizedException);
+      ).rejects.toThrow(BadRequestException);
       expect(mockPrisma.user.update).not.toHaveBeenCalled();
     });
 

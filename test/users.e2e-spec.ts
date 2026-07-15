@@ -49,13 +49,23 @@ describe('Users (e2e)', () => {
   });
 
   describe('PATCH /api/users/me/password', () => {
-    it('401 - wrong current password', async () => {
+    it('401 - no token', async () => {
+      const res = await request(ctx.server)
+        .patch('/api/users/me/password')
+        .send({ currentPassword: 'Test1234', newPassword: 'NewPass1' });
+
+      expect(res.status).toBe(401);
+      expect(res.body.message).toBe('Authentication required');
+    });
+
+    it('400 - wrong current password', async () => {
       const res = await request(ctx.server)
         .patch('/api/users/me/password')
         .set('Authorization', `Bearer ${user.token}`)
         .send({ currentPassword: 'WrongPass1', newPassword: 'NewPass1' });
 
-      expect(res.status).toBe(401);
+      expect(res.status).toBe(400);
+      expect(res.body.message).toBe('Current password is incorrect');
     });
 
     it('200 - changes the password and the new one works on login', async () => {
