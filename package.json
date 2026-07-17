@@ -1,10 +1,14 @@
 {
   "name": "coin-api",
   "version": "0.0.1",
-  "description": "",
-  "author": "",
+  "description": "REST API for CoinFlow, a personal finance management app — NestJS 11, Prisma 7, PostgreSQL",
+  "author": "Carlos Nápoles Avila",
   "private": true,
-  "license": "UNLICENSED",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/carlosnapolesdev/coin-api.git"
+  },
   "engines": {
     "node": ">=22.15.0"
   },
