@@ -4,7 +4,7 @@
 
 REST API for **CoinFlow**, a personal finance management app. It handles authentication, multi-currency accounts, transactions (with CSV import/export), budgets, savings goals, recurring transactions, and reports.
 
-Built with [NestJS](https://nestjs.com) 11, [Prisma](https://www.prisma.io) 7, and PostgreSQL. This API replaced the original Spring Boot backend (`coinflow`) and keeps its database schema and API contract — the database is still named `coinflow`.
+Built with [NestJS](https://nestjs.com) 11, [Prisma](https://www.prisma.io) 7, and PostgreSQL.
 
 ## Tech stack
 

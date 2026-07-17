@@ -284,23 +284,6 @@ model UserCurrency {
   @@map("user_currencies")
 }
 
-model FlywaySchemaHistory {
-  installedRank Int      @id(map: "flyway_schema_history_pk") @map("installed_rank")
-  version       String?  @db.VarChar(50)
-  description   String   @db.VarChar(200)
-  type          String   @db.VarChar(20)
-  script        String   @db.VarChar(1000)
-  checksum      Int?
-  installedBy   String   @map("installed_by") @db.VarChar(100)
-  installedOn   DateTime @default(now()) @map("installed_on") @db.Timestamp(6)
-  executionTime Int      @map("execution_time")
-  success       Boolean
-
-  @@index([success], map: "flyway_schema_history_s_idx")
-  @@ignore
-  @@map("flyway_schema_history")
-}
-
 model Attachment {
   id            BigInt   @id @default(autoincrement())
   userId        BigInt   @map("user_id")

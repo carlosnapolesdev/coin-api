@@ -132,22 +132,6 @@ CREATE TABLE "user_currencies" (
     CONSTRAINT "user_currencies_pkey" PRIMARY KEY ("currency_id","user_id")
 );
 
--- CreateTable
-CREATE TABLE "flyway_schema_history" (
-    "installed_rank" INTEGER NOT NULL,
-    "version" VARCHAR(50),
-    "description" VARCHAR(200) NOT NULL,
-    "type" VARCHAR(20) NOT NULL,
-    "script" VARCHAR(1000) NOT NULL,
-    "checksum" INTEGER,
-    "installed_by" VARCHAR(100) NOT NULL,
-    "installed_on" TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "execution_time" INTEGER NOT NULL,
-    "success" BOOLEAN NOT NULL,
-
-    CONSTRAINT "flyway_schema_history_pk" PRIMARY KEY ("installed_rank")
-);
-
 -- CreateIndex
 CREATE UNIQUE INDEX "uk_users_username" ON "users"("username");
 
@@ -168,9 +152,6 @@ CREATE INDEX "idx_transactions_effective_date" ON "transactions"("effective_date
 
 -- CreateIndex
 CREATE INDEX "idx_transactions_user_id" ON "transactions"("user_id");
-
--- CreateIndex
-CREATE INDEX "flyway_schema_history_s_idx" ON "flyway_schema_history"("success");
 
 -- AddForeignKey
 ALTER TABLE "accounts" ADD CONSTRAINT "fk_account_currency" FOREIGN KEY ("currency_id") REFERENCES "currencies"("id") ON DELETE NO ACTION ON UPDATE NO ACTION;

@@ -247,7 +247,7 @@ export class CurrenciesService {
 
       const data: Prisma.UserCurrencyUpdateInput = { updatedAt: now };
 
-      // Track effective state as we apply changes (mirrors Spring Boot's in-memory mutation pattern)
+      // Track effective state as we apply changes
       let effectiveIsBase = userCurrency.isBase ?? false;
       let effectiveIsActive = userCurrency.isActive ?? false;
 
