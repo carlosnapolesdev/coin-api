@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    env:
+      # Dummy values: unit tests mock Prisma/Config and never reach a database,
+      # but a well-formed environment keeps the Prisma CLI and any config
+      # loading happy.
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/coinflow
+      JWT_SECRET: ci-only-secret-value-of-32-chars!
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - run: npm ci
+
+      - run: npx prisma generate
+
+      - name: Lint
+        # Same globs as the lint script but without --fix, so formatting
+        # drift fails the build instead of being silently fixed in CI.
+        run: npx eslint "src/**/*.ts" "test/**/*.ts"
+
+      - name: Test
+        run: npm test
+
+      - name: Build
+        run: npm run build
