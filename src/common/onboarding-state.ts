@@ -27,9 +27,7 @@ export function normalizeOnboardingState(raw: unknown): OnboardingState {
         ? value.celebrationShown
         : false,
     reportsVisited:
-      typeof value.reportsVisited === 'boolean'
-        ? value.reportsVisited
-        : false,
+      typeof value.reportsVisited === 'boolean' ? value.reportsVisited : false,
     tourVersion:
       typeof tourVersion === 'number' &&
       Number.isInteger(tourVersion) &&
