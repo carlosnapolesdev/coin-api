@@ -51,7 +51,7 @@ Validated at startup by Joi (`src/config/env.validation.ts`).
 | `JWT_EXPIRATION_MS` | no | `3600000` | Token lifetime (1 h) |
 | `JWT_REMEMBER_ME_EXPIRATION_MS` | no | `604800000` | "Remember me" token lifetime (7 d) |
 | `JWT_ISSUER` | no | `coinflow` | JWT `iss` claim |
-| `CORS_ORIGIN` | no | *(all)* | Comma-separated allowed origins |
+| `CORS_ORIGIN` | in production | *(all, dev only)* | Comma-separated allowed origins; startup fails in production if unset |
 | `APP_URL` | no | `http://localhost:5173` | Frontend base URL used in password-reset links |
 | `AAAPIS_TOKEN` | no | — | aaapis.com token, used only by the currency seed |
 | `PORT` | no | `8080` | HTTP port |

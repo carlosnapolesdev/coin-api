@@ -6,6 +6,7 @@ import { Logger } from 'nestjs-pino';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './common/filters';
+import { resolveCorsOrigin } from './config/cors';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, { bufferLogs: true });
@@ -15,7 +16,7 @@ async function bootstrap() {
   app.use(helmet());
 
   app.enableCors({
-    origin: process.env.CORS_ORIGIN?.split(',').filter(Boolean) ?? true,
+    origin: resolveCorsOrigin(process.env.CORS_ORIGIN, process.env.NODE_ENV),
     credentials: true,
   });
 
