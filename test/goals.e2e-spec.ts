@@ -15,7 +15,7 @@ describe('Goals (e2e)', () => {
   let accountId: number;
   let manualGoalId: number;
   let linkedGoalId: number;
-  const email = 'goals-e2e@test.coinflow';
+  const email = 'goals-e2e@test.crecik';
 
   beforeAll(async () => {
     ctx = await createTestApp();

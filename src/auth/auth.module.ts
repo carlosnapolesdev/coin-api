@@ -19,7 +19,7 @@ import { JwtStrategy } from './strategies/jwt.strategy';
       useFactory: (config: ConfigService) => ({
         secret: config.get<string>('JWT_SECRET'),
         signOptions: {
-          issuer: config.get<string>('JWT_ISSUER', 'coinflow'),
+          issuer: config.get<string>('JWT_ISSUER', 'crecik'),
         },
       }),
     }),

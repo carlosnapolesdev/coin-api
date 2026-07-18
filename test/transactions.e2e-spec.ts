@@ -15,7 +15,7 @@ describe('Transactions (e2e)', () => {
   let accountId: number;
   let categoryId: number;
   let transactionId: number;
-  const email = 'transactions-e2e@test.coinflow';
+  const email = 'transactions-e2e@test.crecik';
 
   beforeAll(async () => {
     ctx = await createTestApp();

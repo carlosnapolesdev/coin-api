@@ -1,7 +1,7 @@
 {
   "name": "coin-api",
   "version": "0.0.1",
-  "description": "REST API for CoinFlow, a personal finance management app — NestJS 11, Prisma 7, PostgreSQL",
+  "description": "REST API for Crecik, a personal finance management app — NestJS 11, Prisma 7, PostgreSQL",
   "author": "Carlos Nápoles Avila",
   "private": true,
   "license": "MIT",

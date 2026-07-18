@@ -11,7 +11,7 @@ export const envValidationSchema = Joi.object({
   JWT_SECRET: Joi.string().min(32).required(),
   JWT_EXPIRATION_MS: Joi.number().default(3600000),
   JWT_REMEMBER_ME_EXPIRATION_MS: Joi.number().default(604800000),
-  JWT_ISSUER: Joi.string().default('coinflow'),
+  JWT_ISSUER: Joi.string().default('crecik'),
 
   // In production the API must never fall back to allow-all CORS with
   // credentials, so the allowed origins are mandatory there.

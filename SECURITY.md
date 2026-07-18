@@ -2,7 +2,7 @@
 
 ## Supported Versions
 
-CoinFlow is under active development. Only the latest code on the `main`
+Crecik is under active development. Only the latest code on the `main`
 branch receives security fixes.
 
 ## Reporting a Vulnerability

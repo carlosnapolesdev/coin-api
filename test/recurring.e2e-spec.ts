@@ -15,7 +15,7 @@ describe('Recurring transactions (e2e)', () => {
   let categoryId: number;
   let accountId: number;
   let recurringId: number;
-  const email = 'recurring-e2e@test.coinflow';
+  const email = 'recurring-e2e@test.crecik';
 
   beforeAll(async () => {
     ctx = await createTestApp();

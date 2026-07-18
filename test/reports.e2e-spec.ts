@@ -15,7 +15,7 @@ describe('Reports (e2e)', () => {
   let accountId: number;
   let incomeCategoryId: number;
   let expenseCategoryId: number;
-  const email = 'reports-e2e@test.coinflow';
+  const email = 'reports-e2e@test.crecik';
 
   const auth = () => ({ Authorization: `Bearer ${user.token}` });
 

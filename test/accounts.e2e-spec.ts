@@ -13,7 +13,7 @@ describe('Accounts (e2e)', () => {
   let user: TestUser;
   let currencyId: number;
   let accountId: number;
-  const email = 'accounts-e2e@test.coinflow';
+  const email = 'accounts-e2e@test.crecik';
 
   beforeAll(async () => {
     ctx = await createTestApp();
@@ -97,7 +97,7 @@ describe('Accounts (e2e)', () => {
     });
 
     it('200 - reflects an incoming transfer as a positive currentBalance on the destination account', async () => {
-      const transferEmail = 'accounts-transfer-e2e@test.coinflow';
+      const transferEmail = 'accounts-transfer-e2e@test.crecik';
       await cleanupUser(ctx.prisma, transferEmail);
       const transferUser = await registerTestUser(
         ctx.server,

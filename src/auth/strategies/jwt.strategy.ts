@@ -30,7 +30,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
       secretOrKey: config.get<string>('JWT_SECRET')!,
-      issuer: config.get<string>('JWT_ISSUER', 'coinflow'),
+      issuer: config.get<string>('JWT_ISSUER', 'crecik'),
     });
   }
 

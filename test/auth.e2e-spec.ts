@@ -10,7 +10,7 @@ import {
 describe('Auth (e2e)', () => {
   let ctx: TestContext;
   let currencyId: number;
-  const email = 'auth-e2e@test.coinflow';
+  const email = 'auth-e2e@test.crecik';
 
   beforeAll(async () => {
     ctx = await createTestApp();
@@ -61,7 +61,7 @@ describe('Auth (e2e)', () => {
     it('400 - missing required fields', async () => {
       const res = await request(ctx.server)
         .post('/api/auth/register')
-        .send({ email: 'incomplete@test.coinflow' });
+        .send({ email: 'incomplete@test.crecik' });
 
       expect(res.status).toBe(400);
       expect(res.body).toHaveProperty('validationErrors');
@@ -72,7 +72,7 @@ describe('Auth (e2e)', () => {
         .post('/api/auth/register')
         .send({
           fullName: 'Test',
-          email: 'weak@test.coinflow',
+          email: 'weak@test.crecik',
           password: 'onlyletters',
           currencies: [{ currencyId, base: true }],
         });
@@ -107,7 +107,7 @@ describe('Auth (e2e)', () => {
     it('401 - non-existent user', async () => {
       const res = await request(ctx.server)
         .post('/api/auth/login')
-        .send({ identifier: 'nobody@test.coinflow', password: 'Test1234' });
+        .send({ identifier: 'nobody@test.crecik', password: 'Test1234' });
 
       expect(res.status).toBe(401);
     });
@@ -150,7 +150,7 @@ describe('Auth (e2e)', () => {
     it('200 - always returns OK, even for an unknown email (no enumeration)', async () => {
       const res = await request(ctx.server)
         .post('/api/auth/forgot-password')
-        .send({ email: 'ghost@test.coinflow' });
+        .send({ email: 'ghost@test.crecik' });
 
       expect(res.status).toBe(200);
     });

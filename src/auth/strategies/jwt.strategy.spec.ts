@@ -9,7 +9,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { JwtStrategy } from './jwt.strategy';
 
 const JWT_SECRET = 's'.repeat(32);
-const ISSUER = 'coinflow';
+const ISSUER = 'crecik';
 const USER_EMAIL = 'user@example.com';
 
 @Controller('probe')

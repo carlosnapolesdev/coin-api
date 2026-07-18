@@ -12,7 +12,7 @@ describe('Currencies (e2e)', () => {
   let ctx: TestContext;
   let user: TestUser;
   let currencyId: number;
-  const email = 'currencies-e2e@test.coinflow';
+  const email = 'currencies-e2e@test.crecik';
 
   beforeAll(async () => {
     ctx = await createTestApp();

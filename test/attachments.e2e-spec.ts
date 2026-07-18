@@ -21,12 +21,12 @@ describe('Attachments (e2e)', () => {
   let otherTransactionId: number;
   let attachmentId: number;
   let uploadDir: string;
-  const email = 'attachments-e2e@test.coinflow';
-  const otherEmail = 'attachments-e2e-other@test.coinflow';
+  const email = 'attachments-e2e@test.crecik';
+  const otherEmail = 'attachments-e2e-other@test.crecik';
 
   beforeAll(async () => {
     uploadDir = fs.mkdtempSync(
-      path.join(os.tmpdir(), 'coinflow-attachments-e2e-'),
+      path.join(os.tmpdir(), 'crecik-attachments-e2e-'),
     );
     process.env.UPLOAD_DIR = uploadDir;
 

@@ -27,8 +27,8 @@ describe('Splits (e2e)', () => {
   let otherCategoryId: number;
   let expenseTxId: number;
   let transferTxId: number;
-  const email = 'splits-e2e@test.coinflow';
-  const otherEmail = 'splits-e2e-other@test.coinflow';
+  const email = 'splits-e2e@test.crecik';
+  const otherEmail = 'splits-e2e-other@test.crecik';
 
   beforeAll(async () => {
     ctx = await createTestApp();

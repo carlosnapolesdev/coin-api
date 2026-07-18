@@ -13,7 +13,7 @@ describe('Categories (e2e)', () => {
   let user: TestUser;
   let currencyId: number;
   let createdCategoryId: number;
-  const email = 'categories-e2e@test.coinflow';
+  const email = 'categories-e2e@test.crecik';
 
   beforeAll(async () => {
     ctx = await createTestApp();

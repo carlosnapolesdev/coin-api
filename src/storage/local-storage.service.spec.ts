@@ -8,7 +8,7 @@ describe('LocalStorageService', () => {
   let service: LocalStorageService;
 
   beforeEach(async () => {
-    tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'coinflow-storage-'));
+    tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'crecik-storage-'));
     process.env.UPLOAD_DIR = tmpDir;
     service = new LocalStorageService();
   });

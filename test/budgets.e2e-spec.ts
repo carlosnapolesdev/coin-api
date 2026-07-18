@@ -14,7 +14,7 @@ describe('Budgets (e2e)', () => {
   let currencyId: number;
   let categoryId: number;
   let budgetId: number;
-  const email = 'budgets-e2e@test.coinflow';
+  const email = 'budgets-e2e@test.crecik';
 
   beforeAll(async () => {
     ctx = await createTestApp();
