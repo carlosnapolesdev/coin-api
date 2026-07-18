@@ -117,6 +117,7 @@ export async function cleanupUser(
   await prisma.transaction.deleteMany({
     where: { account: { userId } },
   });
+  await prisma.reconciliation.deleteMany({ where: { userId } });
   await prisma.goal.deleteMany({ where: { userId } });
   await prisma.account.deleteMany({ where: { userId } });
   await prisma.budget.deleteMany({ where: { userId } });
