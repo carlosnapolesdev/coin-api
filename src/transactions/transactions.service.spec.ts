@@ -2,6 +2,7 @@ import { NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { TagsService } from '../tags/tags.service';
 import { TransactionStatus, TransactionType } from '../common/enums';
 import { TransactionsService } from './transactions.service';
 import type { CreateTransactionDto } from './dto/create-transaction.dto';
@@ -119,6 +120,9 @@ describe('TransactionsService', () => {
       delete: jest.fn(),
       deleteMany: jest.fn(),
     },
+    tag: {
+      createMany: jest.fn(),
+    },
     $transaction: jest.fn(),
   };
 
@@ -126,6 +130,7 @@ describe('TransactionsService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         TransactionsService,
+        TagsService,
         { provide: PrismaService, useValue: mockPrisma },
       ],
     }).compile();
@@ -460,6 +465,28 @@ describe('TransactionsService', () => {
         service.createTransaction(1, { ...dto, categoryId: 99 }),
       ).rejects.toThrow(NotFoundException);
     });
+
+    it('upserts Tag rows from the CSV after creating a transaction', async () => {
+      userExists();
+      mockPrisma.account.findFirst.mockResolvedValue(
+        makeAccount(BigInt(1), { startBalance: 0 }),
+      );
+      mockPrisma.transaction.create.mockResolvedValue(
+        makeTransaction(BigInt(10)),
+      );
+      mockPrisma.tag.createMany.mockResolvedValue({ count: 2 });
+
+      await service.createTransaction(1, { ...dto, tags: 'food, travel' });
+
+      expect(mockPrisma.tag.createMany).toHaveBeenCalledTimes(1);
+      expect(mockPrisma.tag.createMany).toHaveBeenCalledWith({
+        data: expect.arrayContaining([
+          { userId: BigInt(1), name: 'food' },
+          { userId: BigInt(1), name: 'travel' },
+        ]),
+        skipDuplicates: true,
+      });
+    });
   });
 
   describe('createTransaction — TRANSFER', () => {
@@ -670,6 +697,34 @@ describe('TransactionsService', () => {
         }),
       );
     });
+
+    it('calls syncTags once when creating a TRANSFER with tags', async () => {
+      userExists();
+      mockPrisma.account.findFirst
+        .mockResolvedValueOnce(makeAccount(BigInt(1), { startBalance: 0 }))
+        .mockResolvedValueOnce(makeAccount(BigInt(2), { startBalance: 0 }));
+      mockPrisma.$transaction.mockImplementation(
+        (cb: (tx: typeof mockPrisma) => unknown) => cb(mockPrisma),
+      );
+      mockPrisma.transaction.create
+        .mockResolvedValueOnce(makeTransaction(BigInt(10)))
+        .mockResolvedValueOnce(makeTransaction(BigInt(11)));
+      mockPrisma.tag.createMany.mockResolvedValue({ count: 2 });
+
+      await service.createTransaction(1, {
+        ...transferDto,
+        tags: 'food, travel',
+      });
+
+      expect(mockPrisma.tag.createMany).toHaveBeenCalledTimes(1);
+      expect(mockPrisma.tag.createMany).toHaveBeenCalledWith({
+        data: expect.arrayContaining([
+          { userId: BigInt(1), name: 'food' },
+          { userId: BigInt(1), name: 'travel' },
+        ]),
+        skipDuplicates: true,
+      });
+    });
   });
 
   describe('updateTransaction', () => {
@@ -772,6 +827,34 @@ describe('TransactionsService', () => {
       await expect(
         service.updateTransaction(1, 5, { payee: 'Updated', memo: 'm' }),
       ).resolves.toBeDefined();
+    });
+
+    it('upserts Tag rows when the DTO carries a tags field', async () => {
+      const existingTx = makeTransaction(BigInt(5));
+      mockPrisma.transaction.findFirst.mockResolvedValue(existingTx);
+      mockPrisma.transaction.update.mockResolvedValue(existingTx);
+      mockPrisma.tag.createMany.mockResolvedValue({ count: 2 });
+
+      await service.updateTransaction(1, 5, { tags: 'food, travel' });
+
+      expect(mockPrisma.tag.createMany).toHaveBeenCalledTimes(1);
+      expect(mockPrisma.tag.createMany).toHaveBeenCalledWith({
+        data: expect.arrayContaining([
+          { userId: BigInt(1), name: 'food' },
+          { userId: BigInt(1), name: 'travel' },
+        ]),
+        skipDuplicates: true,
+      });
+    });
+
+    it('does NOT call syncTags when the DTO omits the tags field', async () => {
+      const existingTx = makeTransaction(BigInt(5));
+      mockPrisma.transaction.findFirst.mockResolvedValue(existingTx);
+      mockPrisma.transaction.update.mockResolvedValue(existingTx);
+
+      await service.updateTransaction(1, 5, { payee: 'NoTagChange' });
+
+      expect(mockPrisma.tag.createMany).not.toHaveBeenCalled();
     });
   });
 
@@ -893,6 +976,88 @@ describe('TransactionsService', () => {
       ).rejects.toThrow(
         'Changing accounts on an existing transfer is not supported',
       );
+    });
+
+    it('calls syncTags once when updating a TRANSFER with tags', async () => {
+      const sourceLeg = makeTransaction(BigInt(10), {
+        type: TransactionType.TRANSFER,
+        amount: 100,
+        accountId: BigInt(1),
+        accountCurrencyId: BigInt(1),
+        transferIn: false,
+        transferGroupId: 'grp-1',
+        transferAccountId: BigInt(2),
+        exchangeRate: 40,
+      });
+      const destinationLeg = makeTransaction(BigInt(11), {
+        type: TransactionType.TRANSFER,
+        amount: 4000,
+        accountId: BigInt(2),
+        accountCurrencyId: BigInt(2),
+        transferIn: true,
+        transferGroupId: 'grp-1',
+        transferAccountId: BigInt(1),
+        exchangeRate: 40,
+      });
+
+      mockPrisma.transaction.findFirst
+        .mockResolvedValueOnce(sourceLeg)
+        .mockResolvedValueOnce(destinationLeg);
+      mockPrisma.$transaction.mockImplementation(
+        (cb: (tx: typeof mockPrisma) => unknown) => cb(mockPrisma),
+      );
+      mockPrisma.transaction.update
+        .mockResolvedValueOnce(sourceLeg)
+        .mockResolvedValueOnce(destinationLeg);
+      mockPrisma.tag.createMany.mockResolvedValue({ count: 2 });
+
+      await service.updateTransaction(1, 10, { tags: 'food, travel' });
+
+      expect(mockPrisma.tag.createMany).toHaveBeenCalledTimes(1);
+      expect(mockPrisma.tag.createMany).toHaveBeenCalledWith({
+        data: expect.arrayContaining([
+          { userId: BigInt(1), name: 'food' },
+          { userId: BigInt(1), name: 'travel' },
+        ]),
+        skipDuplicates: true,
+      });
+    });
+
+    it('does NOT call syncTags when updating a TRANSFER without a tags field', async () => {
+      const sourceLeg = makeTransaction(BigInt(10), {
+        type: TransactionType.TRANSFER,
+        amount: 100,
+        accountId: BigInt(1),
+        accountCurrencyId: BigInt(1),
+        transferIn: false,
+        transferGroupId: 'grp-1',
+        transferAccountId: BigInt(2),
+        exchangeRate: 40,
+      });
+      const destinationLeg = makeTransaction(BigInt(11), {
+        type: TransactionType.TRANSFER,
+        amount: 4000,
+        accountId: BigInt(2),
+        accountCurrencyId: BigInt(2),
+        transferIn: true,
+        transferGroupId: 'grp-1',
+        transferAccountId: BigInt(1),
+        exchangeRate: 40,
+      });
+
+      mockPrisma.transaction.findFirst
+        .mockResolvedValueOnce(sourceLeg)
+        .mockResolvedValueOnce(destinationLeg);
+      mockPrisma.$transaction.mockImplementation(
+        (cb: (tx: typeof mockPrisma) => unknown) => cb(mockPrisma),
+      );
+      mockPrisma.transaction.update
+        .mockResolvedValueOnce(sourceLeg)
+        .mockResolvedValueOnce(destinationLeg);
+
+      await service.updateTransaction(1, 10, { payee: 'No tag change' });
+
+      expect(mockPrisma.tag.createMany).not.toHaveBeenCalled();
     });
   });
 

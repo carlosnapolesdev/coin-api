@@ -41,6 +41,7 @@ model User {
   recurringTransactions RecurringTransaction[]
   attachments          Attachment[]
   notifications        Notification[]
+  tags                 Tag[]
 
   @@map("users")
 }
@@ -358,4 +359,17 @@ model Notification {
   @@index([userId, isRead], map: "idx_notifications_user_unread")
   @@index([userId, createdAt], map: "idx_notifications_user_created_at")
   @@map("notifications")
+}
+
+model Tag {
+  id        BigInt    @id @default(autoincrement())
+  userId    BigInt    @map("user_id")
+  name      String    @db.VarChar(100)
+  createdAt DateTime? @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_tag_user")
+
+  @@unique([userId, name], map: "uq_tags_user_name")
+  @@index([userId], map: "idx_tags_user_id")
+  @@map("tags")
 }

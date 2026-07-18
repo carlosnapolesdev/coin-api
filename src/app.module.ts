@@ -7,6 +7,7 @@ import { UsersModule } from './users/users.module';
 import { AccountsModule } from './accounts/accounts.module';
 import { CategoriesModule } from './categories/categories.module';
 import { CurrenciesModule } from './currencies/currencies.module';
+import { TagsModule } from './tags/tags.module';
 import { TransactionsModule } from './transactions/transactions.module';
 import { BudgetsModule } from './budgets/budgets.module';
 import { GoalsModule } from './goals/goals.module';
@@ -47,6 +48,7 @@ import { NotificationsModule } from './notifications/notifications.module';
     AccountsModule,
     CategoriesModule,
     CurrenciesModule,
+    TagsModule,
     TransactionsModule,
     BudgetsModule,
     GoalsModule,

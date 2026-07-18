@@ -7,6 +7,7 @@ import {
 import { Prisma } from '@prisma/client';
 import { stringify } from 'csv-stringify/sync';
 import { PrismaService } from '../prisma/prisma.service';
+import { TagsService } from '../tags/tags.service';
 import { TransactionStatus, TransactionType } from '../common/enums';
 import type { TransactionResponseDto } from './dto/transaction-response.dto';
 import type { CreateTransactionDto } from './dto/create-transaction.dto';
@@ -43,7 +44,10 @@ const TX_RELATIONS_INCLUDE = {
 
 @Injectable()
 export class TransactionsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly tags: TagsService,
+  ) {}
 
   async getUserTransactions(
     userId: number,
@@ -228,6 +232,7 @@ export class TransactionsService {
       },
       include: TX_RELATIONS_INCLUDE,
     });
+    await this.tags.syncTags(userId, dto.tags);
     return this.toResponse(transaction, null);
   }
 
@@ -318,6 +323,7 @@ export class TransactionsService {
       return out;
     });
 
+    await this.tags.syncTags(userId, dto.tags);
     return this.toResponse(source, null);
   }
 
@@ -374,6 +380,9 @@ export class TransactionsService {
       data,
       include: TX_RELATIONS_INCLUDE,
     });
+    if (dto.tags !== undefined) {
+      await this.tags.syncTags(userId, dto.tags);
+    }
     return this.toResponse(updated, null);
   }
 
@@ -454,6 +463,10 @@ export class TransactionsService {
         });
         return [updatedSrc, updatedDst];
       });
+
+    if (dto.tags !== undefined) {
+      await this.tags.syncTags(userId, dto.tags);
+    }
 
     const requested = existing.transferIn
       ? updatedDestinationLeg
