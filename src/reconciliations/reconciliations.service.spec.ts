@@ -124,7 +124,7 @@ describe('ReconciliationsService', () => {
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
-    it('counts transfer-in legs as inflows (consistent with F1)', async () => {
+    it('counts transfer-in legs as inflows (sign convention must match the rest of the balance math)', async () => {
       mockPrisma.account.findFirst.mockResolvedValue(
         makeAccount(BigInt(10), 0),
       );
