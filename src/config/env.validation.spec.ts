@@ -1,7 +1,7 @@
 import { envValidationSchema } from './env.validation';
 
 const baseEnv = {
-  DATABASE_URL: 'postgresql://postgres:postgres@localhost:5432/coinflow',
+  DATABASE_URL: 'postgresql://postgres:postgres@localhost:5432/crecik',
   JWT_SECRET: 'a'.repeat(32),
 };
 

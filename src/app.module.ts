@@ -18,6 +18,7 @@ import { PrismaModule } from './prisma/prisma.module';
 import { MailModule } from './mail/mail.module';
 import { StorageModule } from './storage/storage.module';
 import { AttachmentsModule } from './attachments/attachments.module';
+import { NotificationsModule } from './notifications/notifications.module';
 
 @Module({
   imports: [
@@ -51,6 +52,7 @@ import { AttachmentsModule } from './attachments/attachments.module';
     ReportsModule,
     RecurringModule,
     HealthModule,
+    NotificationsModule,
   ],
 })
 export class AppModule {}

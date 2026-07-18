@@ -120,6 +120,7 @@ export async function cleanupUser(
   await prisma.goal.deleteMany({ where: { userId } });
   await prisma.account.deleteMany({ where: { userId } });
   await prisma.budget.deleteMany({ where: { userId } });
+  await prisma.notification.deleteMany({ where: { userId } });
   await prisma.$executeRaw`UPDATE user_categories SET parent_id = NULL WHERE user_id = ${userId}`;
   await prisma.userCategory.deleteMany({ where: { userId } });
   await prisma.userCurrency.deleteMany({ where: { userId } });

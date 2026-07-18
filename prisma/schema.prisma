@@ -38,7 +38,8 @@ model User {
   goals                Goal[]
   passwordResetTokens  PasswordResetToken[]
   recurringTransactions RecurringTransaction[]
-  attachments         Attachment[]
+  attachments          Attachment[]
+  notifications        Notification[]
 
   @@map("users")
 }
@@ -316,4 +317,22 @@ model TransactionSplit {
   @@index([transactionId], map: "idx_transaction_splits_transaction_id")
   @@index([categoryId], map: "idx_transaction_splits_category_id")
   @@map("transaction_splits")
+}
+
+model Notification {
+  id         BigInt    @id @default(autoincrement())
+  userId     BigInt    @map("user_id")
+  type       String    @db.VarChar(40)
+  title      String    @db.VarChar(255)
+  body       String
+  dedupeKey  String    @map("dedupe_key") @db.VarChar(120)
+  isRead     Boolean?  @default(false) @map("is_read")
+  createdAt  DateTime? @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, dedupeKey], map: "uq_notifications_user_dedupe")
+  @@index([userId, isRead], map: "idx_notifications_user_unread")
+  @@index([userId, createdAt], map: "idx_notifications_user_created_at")
+  @@map("notifications")
 }
