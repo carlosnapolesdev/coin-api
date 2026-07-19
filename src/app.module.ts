@@ -16,6 +16,7 @@ import { RecurringModule } from './recurring/recurring.module';
 import { HealthModule } from './health/health.module';
 import { ReconciliationsModule } from './reconciliations/reconciliations.module';
 import { envValidationSchema } from './config/env.validation';
+import { buildPinoHttpOptions } from './config/logger';
 import { PrismaModule } from './prisma/prisma.module';
 import { MailModule } from './mail/mail.module';
 import { StorageModule } from './storage/storage.module';
@@ -30,13 +31,7 @@ import { NotificationsModule } from './notifications/notifications.module';
       validationOptions: { abortEarly: false },
     }),
     LoggerModule.forRoot({
-      pinoHttp: {
-        level: process.env.NODE_ENV === 'test' ? 'silent' : 'info',
-        transport:
-          process.env.NODE_ENV === 'development'
-            ? { target: 'pino-pretty', options: { singleLine: true } }
-            : undefined,
-      },
+      pinoHttp: buildPinoHttpOptions(process.env.NODE_ENV),
     }),
     ThrottlerModule.forRoot([{ ttl: 60000, limit: 100 }]),
     PrismaModule,
