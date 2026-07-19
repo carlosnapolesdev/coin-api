@@ -120,3 +120,9 @@ docker exec postgres psql -U postgres -c 'CREATE DATABASE crecik;'
 ```bash
 docker compose up -d --build
 ```
+
+After the first boot, seed the currency and category catalogs (requires `AAAPIS_TOKEN`; safe to re-run — each seeder skips tables that already contain data):
+
+```bash
+docker exec coin-api node dist/console.js seed
+```
