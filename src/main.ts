@@ -1,5 +1,6 @@
 import { NestFactory } from '@nestjs/core';
 import { BadRequestException, ValidationPipe } from '@nestjs/common';
+import type { NestExpressApplication } from '@nestjs/platform-express';
 import { ValidationError } from 'class-validator';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { Logger } from 'nestjs-pino';
@@ -9,7 +10,14 @@ import { AllExceptionsFilter } from './common/filters';
 import { resolveCorsOrigin } from './config/cors';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule, { bufferLogs: true });
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
+    bufferLogs: true,
+  });
+
+  // Behind the reverse proxy (external `web` network) the client IP arrives
+  // via X-Forwarded-For; without this the throttler sees every request as
+  // coming from the proxy's IP.
+  app.set('trust proxy', 1);
 
   app.useLogger(app.get(Logger));
 
