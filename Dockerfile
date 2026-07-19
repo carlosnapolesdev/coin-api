@@ -16,5 +16,8 @@ COPY --from=builder /app/node_modules/prisma ./node_modules/prisma
 COPY --from=builder /app/node_modules/.bin/prisma ./node_modules/.bin/prisma
 COPY --from=builder /app/dist ./dist
 COPY prisma ./prisma
+# Prisma 7 reads the datasource URL from prisma.config.ts, not schema.prisma —
+# without it `prisma migrate deploy` fails at container start.
+COPY prisma.config.ts ./
 EXPOSE 8080
 CMD ["sh", "-c", "npx prisma migrate deploy && node dist/main.js"]
