@@ -35,4 +35,7 @@ jobs:
         run: npm test
 
       - name: Build
-        run: npm run build
+        # The entrypoint must land at dist/main.js — the Docker CMD and
+        # start:prod depend on that exact path (a stray root-level .ts file
+        # in the compilation shifts everything under dist/src/).
+        run: npm run build && test -f dist/main.js
