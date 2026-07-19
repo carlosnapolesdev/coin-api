@@ -12,7 +12,7 @@ jobs:
       # Dummy values: unit tests mock Prisma/Config and never reach a database,
       # but a well-formed environment keeps the Prisma CLI and any config
       # loading happy.
-      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/coinflow
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/crecik
       JWT_SECRET: ci-only-secret-value-of-32-chars!
     steps:
       - uses: actions/checkout@v7

@@ -5,19 +5,26 @@ services:
     restart: unless-stopped
     environment:
       NODE_ENV: production
-      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/coinflow
+      # `postgres` resolves to the host stack's postgres container on the
+      # external `backend` network; the `crecik` database must exist there.
+      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/crecik
       JWT_SECRET: ${JWT_SECRET}
       JWT_EXPIRATION_MS: ${JWT_EXPIRATION_MS:-3600000}
       JWT_REMEMBER_ME_EXPIRATION_MS: ${JWT_REMEMBER_ME_EXPIRATION_MS:-604800000}
       JWT_ISSUER: ${JWT_ISSUER:-crecik}
       CORS_ORIGIN: ${CORS_ORIGIN:?CORS_ORIGIN is required in production}
+      APP_URL: ${APP_URL:?APP_URL is required in production}
       AAAPIS_TOKEN: ${AAAPIS_TOKEN:-}
+      UPLOAD_DIR: /app/uploads
       PORT: 8080
+    volumes:
+      - uploads:/app/uploads
     networks:
       - web
       - backend
-    depends_on:
-      - postgres
+
+volumes:
+  uploads:
 
 networks:
   web:

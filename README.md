@@ -109,7 +109,13 @@ npx prisma migrate dev --name <change>
 
 ## Docker
 
-The multi-stage `Dockerfile` builds the app and runs `prisma migrate deploy` on container start. `docker-compose.yml` expects external `web` and `backend` networks and a `postgres` service provided by the host stack, with secrets (`POSTGRES_PASSWORD`, `JWT_SECRET`, …) injected via environment.
+The multi-stage `Dockerfile` builds the app and runs `prisma migrate deploy` on container start. `docker-compose.yml` runs only the API: it expects external `web` and `backend` networks, a `postgres` container provided by the host stack on `backend` (with a `crecik` database created in it, see below), and required secrets injected via environment: `POSTGRES_PASSWORD`, `JWT_SECRET`, `CORS_ORIGIN`, and `APP_URL`. File uploads persist in the named `uploads` volume.
+
+The host-stack postgres only creates its default `postgres` database, so create the app database once before the first deploy:
+
+```bash
+docker exec postgres psql -U postgres -c 'CREATE DATABASE crecik;'
+```
 
 ```bash
 docker compose up -d --build
