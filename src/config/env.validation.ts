@@ -26,7 +26,20 @@ export const envValidationSchema = Joi.object({
     otherwise: Joi.string().allow('').default(''),
   }),
 
-  APP_URL: Joi.string().allow('').default(''),
+  // Password-reset links are built from APP_URL; in production it must point
+  // at the real frontend instead of the localhost dev fallback.
+  APP_URL: Joi.string().when('NODE_ENV', {
+    is: 'production',
+    then: Joi.string().uri().required().messages({
+      'any.required':
+        'APP_URL is required in production (frontend base URL used in password-reset links)',
+      'string.empty':
+        'APP_URL is required in production (frontend base URL used in password-reset links)',
+      'string.uri':
+        'APP_URL must be a valid URL (frontend base URL used in password-reset links)',
+    }),
+    otherwise: Joi.string().allow('').default(''),
+  }),
 
   AAAPIS_TOKEN: Joi.string().allow('').default(''),
 });
