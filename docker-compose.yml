@@ -14,6 +14,14 @@ services:
       JWT_ISSUER: ${JWT_ISSUER:-crecik}
       CORS_ORIGIN: ${CORS_ORIGIN:?CORS_ORIGIN is required in production}
       APP_URL: ${APP_URL:?APP_URL is required in production}
+      # Joi rejects a missing MAIL_FROM in production, and without the API key
+      # every send is skipped with a warning — which is exactly how password
+      # reset stayed broken in silence. Both fail closed here so the failure
+      # surfaces at `compose up` instead of at the first reset request.
+      MAIL_FROM: ${MAIL_FROM:?MAIL_FROM is required in production}
+      RESEND_API_KEY: ${RESEND_API_KEY:?RESEND_API_KEY is required to send email}
+      # Optional: without it the daily digest is skipped and logs why.
+      CLIENT_ERRORS_DIGEST_TO: ${CLIENT_ERRORS_DIGEST_TO:-}
       AAAPIS_TOKEN: ${AAAPIS_TOKEN:-}
       UPLOAD_DIR: /app/uploads
       PORT: 8080
