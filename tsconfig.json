@@ -16,6 +16,12 @@
     "incremental": true,
     "skipLibCheck": true,
     "strictNullChecks": true,
+    // Set explicitly because TypeScript 6 turns this on for any project with
+    // strictNullChecks, and this project never opted into it: the request DTOs
+    // declare their properties without initializers because NestJS populates
+    // them from the request body, so the check flags 43 of them and none is a
+    // real defect. Leaving it implicit made a TypeScript bump a breaking change.
+    "strictPropertyInitialization": false,
     "forceConsistentCasingInFileNames": true,
     "noImplicitAny": true,
     "strictBindCallApply": true,
