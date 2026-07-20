@@ -22,6 +22,7 @@ import { MailModule } from './mail/mail.module';
 import { StorageModule } from './storage/storage.module';
 import { AttachmentsModule } from './attachments/attachments.module';
 import { NotificationsModule } from './notifications/notifications.module';
+import { ClientErrorsModule } from './client-errors/client-errors.module';
 
 @Module({
   imports: [
@@ -52,6 +53,7 @@ import { NotificationsModule } from './notifications/notifications.module';
     ReconciliationsModule,
     HealthModule,
     NotificationsModule,
+    ClientErrorsModule,
   ],
 })
 export class AppModule {}

@@ -373,3 +373,23 @@ model Tag {
   @@index([userId], map: "idx_tags_user_id")
   @@map("tags")
 }
+
+model ClientError {
+  id          BigInt    @id @default(autoincrement())
+  fingerprint String    @unique(map: "uk_client_errors_fingerprint") @db.VarChar(64)
+  context     String    @db.VarChar(100)
+  errorName   String    @map("error_name") @db.VarChar(200)
+  message     String
+  stack       String?
+  url         String?   @db.VarChar(500)
+  userAgent   String?   @map("user_agent") @db.VarChar(300)
+  appVersion  String?   @map("app_version") @db.VarChar(50)
+  userId      BigInt?   @map("user_id")
+  count       Int       @default(1)
+  firstSeenAt DateTime  @default(now()) @map("first_seen_at") @db.Timestamptz(6)
+  lastSeenAt  DateTime  @default(now()) @map("last_seen_at") @db.Timestamptz(6)
+  notifiedAt  DateTime? @map("notified_at") @db.Timestamptz(6)
+
+  @@index([lastSeenAt], map: "idx_client_errors_last_seen_at")
+  @@map("client_errors")
+}
