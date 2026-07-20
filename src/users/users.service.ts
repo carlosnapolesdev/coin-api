@@ -51,23 +51,30 @@ export class UsersService {
     userId: number,
     dto: UpdateOnboardingDto,
   ): Promise<OnboardingState> {
-    const existing = await this.prisma.user.findUnique({
-      where: { id: BigInt(userId) },
-      select: { onboardingState: true },
-    });
-    const current = (existing?.onboardingState ?? {}) as Record<
-      string,
-      unknown
-    >;
-    const merged = { ...current, ...dto };
-    const normalized = normalizeOnboardingState(merged);
+    // El merge ocurre dentro del UPDATE (operador `||` de jsonb) en vez de
+    // leer-mezclar-escribir desde Node. El cliente dispara estos PATCH en
+    // fire-and-forget al navegar, así que dos parciales pueden solaparse; con
+    // read-modify-write el segundo escribía el objeto entero a partir de una
+    // lectura obsoleta y revertía el campo del primero (lost update).
+    // Precedencia: defaults < estado persistido < parcial entrante.
+    const defaults = JSON.stringify(normalizeOnboardingState({}));
+    const patch = JSON.stringify(dto);
 
-    const updated = await this.prisma.user.update({
-      where: { id: BigInt(userId) },
-      data: { onboardingState: { ...normalized }, updatedAt: new Date() },
-    });
+    const rows = await this.prisma.$queryRaw<
+      { onboarding_state: unknown }[]
+    >`UPDATE users
+         SET onboarding_state = ${defaults}::jsonb
+                                || COALESCE(onboarding_state, '{}'::jsonb)
+                                || ${patch}::jsonb,
+             updated_at = NOW()
+       WHERE id = ${BigInt(userId)}
+       RETURNING onboarding_state`;
 
-    return normalizeOnboardingState(updated.onboardingState);
+    if (rows.length === 0) {
+      throw new NotFoundException('User was not found');
+    }
+
+    return normalizeOnboardingState(rows[0].onboarding_state);
   }
 
   async changePassword(userId: number, dto: ChangePasswordDto): Promise<void> {

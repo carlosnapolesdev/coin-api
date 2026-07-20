@@ -12,6 +12,7 @@ describe('UsersService', () => {
       findUnique: jest.fn(),
       update: jest.fn(),
     },
+    $queryRaw: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -112,67 +113,60 @@ describe('UsersService', () => {
   });
 
   describe('updateOnboarding', () => {
-    it('merges the patch over the existing state and persists it', async () => {
-      mockPrisma.user.findUnique.mockResolvedValue({
-        onboardingState: {
-          coachSeen: ['dashboard'],
-          checklistDismissed: false,
-        },
-      });
-      mockPrisma.user.update.mockResolvedValue({
-        onboardingState: {
-          coachSeen: ['dashboard'],
-          checklistDismissed: true,
-        },
-      });
+    const sqlOf = (call: unknown[]) =>
+      (call[0] as string[]).join('?').replace(/\s+/g, ' ');
 
-      const result = await service.updateOnboarding(1, {
-        checklistDismissed: true,
-      });
+    it('merges server-side in a single statement instead of read-modify-write', async () => {
+      // Regresión: el merge en Node (findUnique + update) reescribía el objeto
+      // entero desde una lectura obsoleta, así que dos PATCH parciales
+      // concurrentes se pisaban y el segundo revertía el campo del primero.
+      mockPrisma.$queryRaw.mockResolvedValue([
+        { onboarding_state: { reportsVisited: true } },
+      ]);
 
-      expect(mockPrisma.user.update).toHaveBeenCalledWith({
-        where: { id: 1n },
-        data: expect.objectContaining({
-          onboardingState: {
-            coachSeen: ['dashboard'],
-            checklistDismissed: true,
-            celebrationShown: false,
-            reportsVisited: false,
-            tourVersion: 0,
-          },
-        }),
-      });
-      expect(result).toEqual({
-        coachSeen: ['dashboard'],
-        checklistDismissed: true,
+      await service.updateOnboarding(1, { reportsVisited: true });
+
+      expect(mockPrisma.user.findUnique).not.toHaveBeenCalled();
+      expect(mockPrisma.user.update).not.toHaveBeenCalled();
+      expect(mockPrisma.$queryRaw).toHaveBeenCalledTimes(1);
+
+      const call = mockPrisma.$queryRaw.mock.calls[0] as unknown[];
+      expect(sqlOf(call)).toContain(
+        "SET onboarding_state = ?::jsonb || COALESCE(onboarding_state, '{}'::jsonb) || ?::jsonb",
+      );
+      // Sólo viaja el parcial: el estado previo nunca sale de la base.
+      expect(JSON.parse(call[2] as string)).toEqual({ reportsVisited: true });
+      expect(call[3]).toBe(1n);
+    });
+
+    it('passes defaults that lose against both stored state and the patch', async () => {
+      mockPrisma.$queryRaw.mockResolvedValue([{ onboarding_state: {} }]);
+
+      await service.updateOnboarding(1, { checklistDismissed: true });
+
+      const call = mockPrisma.$queryRaw.mock.calls[0] as unknown[];
+      expect(JSON.parse(call[1] as string)).toEqual({
+        coachSeen: [],
+        checklistDismissed: false,
         celebrationShown: false,
         reportsVisited: false,
         tourVersion: 0,
       });
+      // Los defaults van primero para que `||` los sobrescriba, no al revés.
+      expect(sqlOf(call)).toMatch(
+        /SET onboarding_state = \?::jsonb \|\| COALESCE/,
+      );
     });
 
-    it('starts from an empty object when there is no prior state', async () => {
-      mockPrisma.user.findUnique.mockResolvedValue({ onboardingState: null });
-      mockPrisma.user.update.mockResolvedValue({
-        onboardingState: { reportsVisited: true },
-      });
+    it('normalizes the row returned by the update', async () => {
+      mockPrisma.$queryRaw.mockResolvedValue([
+        { onboarding_state: { reportsVisited: true, tourVersion: 'nope' } },
+      ]);
 
       const result = await service.updateOnboarding(1, {
         reportsVisited: true,
       });
 
-      expect(mockPrisma.user.update).toHaveBeenCalledWith({
-        where: { id: 1n },
-        data: expect.objectContaining({
-          onboardingState: {
-            coachSeen: [],
-            checklistDismissed: false,
-            celebrationShown: false,
-            reportsVisited: true,
-            tourVersion: 0,
-          },
-        }),
-      });
       expect(result).toEqual({
         coachSeen: [],
         checklistDismissed: false,
@@ -180,6 +174,14 @@ describe('UsersService', () => {
         reportsVisited: true,
         tourVersion: 0,
       });
+    });
+
+    it('throws NotFoundException when no row matched', async () => {
+      mockPrisma.$queryRaw.mockResolvedValue([]);
+
+      await expect(
+        service.updateOnboarding(999, { reportsVisited: true }),
+      ).rejects.toThrow(NotFoundException);
     });
   });
 
