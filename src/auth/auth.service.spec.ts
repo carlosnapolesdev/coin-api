@@ -2,6 +2,7 @@ import { BadRequestException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { Test, TestingModule } from '@nestjs/testing';
+import * as bcrypt from 'bcrypt';
 import * as crypto from 'node:crypto';
 import { CategoriesService } from '../categories/categories.service';
 import { CurrenciesService } from '../currencies/currencies.service';
@@ -139,6 +140,31 @@ describe('AuthService', () => {
         expect(result.onboardingState.tourVersion).toBe(0);
       },
     );
+  });
+
+  describe('login', () => {
+    it('signs the token with the user id as subject, not the email', async () => {
+      // El email cambia y no es una clave estable; además obligaba a resolver
+      // el usuario por email en cada petición autenticada.
+      const passwordHash = await bcrypt.hash('Right1', 4);
+      mockPrisma.user.findFirst.mockResolvedValue({
+        id: 1n,
+        email: 'user@test.com',
+        fullName: 'User',
+        username: null,
+        language: 'en',
+        onboardingState: null,
+        isActive: true,
+        passwordHash,
+      });
+      mockConfig.get.mockReturnValue(3600000);
+
+      const signSpy = jest.spyOn(mockJwt, 'sign');
+      await service.login({ identifier: 'user@test.com', password: 'Right1' });
+
+      const options = signSpy.mock.calls[0][1] as { subject: string };
+      expect(options.subject).toBe('1');
+    });
   });
 
   describe('forgotPassword', () => {

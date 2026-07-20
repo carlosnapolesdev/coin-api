@@ -35,9 +35,15 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   }
 
   async validate(payload: JwtPayload): Promise<AuthenticatedUser> {
-    const user = await this.prisma.user.findFirst({
-      where: { email: { equals: payload.sub, mode: 'insensitive' } },
-    });
+    let userId: bigint;
+    try {
+      userId = BigInt(payload.sub);
+    } catch {
+      // Token emitido antes de la migración de sub (llevaba el email).
+      throw new UnauthorizedException('Authentication required');
+    }
+
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user || !user.isActive) {
       throw new UnauthorizedException('Authentication required');
     }

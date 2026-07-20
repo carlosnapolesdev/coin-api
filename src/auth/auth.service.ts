@@ -137,7 +137,9 @@ export class AuthService {
     const token = this.jwtService.sign(
       {},
       {
-        subject: user.email ?? undefined,
+        // El id es la clave estable del usuario. El email puede cambiar y
+        // obligaba a resolver por email en cada petición autenticada.
+        subject: String(user.id),
         expiresIn: Math.floor(expirationMs / 1000),
       },
     );
