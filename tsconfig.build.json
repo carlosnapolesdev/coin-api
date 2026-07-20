@@ -8,6 +8,25 @@
   // each fix only blacklisted the newest offender. Pinning the root to src/
   // ends the whole class: anything outside it is never compiled. Standalone
   // scripts run through ts-node and do not need to be.
+  "compilerOptions": {
+    // Overrides the "." inherited from tsconfig.json, and TypeScript 6 requires
+    // it to be explicit anyway (TS5011).
+    //
+    // This does not replace the include above — dropping it makes the default
+    // '**/*' pattern pull in test/ and the root-level scripts, and the build
+    // fails with TS6059. What it does is invert the failure mode of the bug
+    // described above: a stray file used to compile fine and silently relocate
+    // the entrypoint to dist/src/main.js, breaking the image at runtime. With
+    // the root pinned, that same mistake fails the build outright instead.
+    //
+    // Must live inside compilerOptions. At the top level it is silently ignored
+    // and main.js goes back under dist/src/.
+    "rootDir": "./src",
+    // Pinning rootDir moves the default location of this file to the repo root,
+    // where it is not covered by /dist in .gitignore and shows up as untracked
+    // noise. It belongs with the build output.
+    "tsBuildInfoFile": "./dist/tsconfig.build.tsbuildinfo"
+  },
   "include": ["src/**/*"],
   "exclude": ["**/*spec.ts"]
 }

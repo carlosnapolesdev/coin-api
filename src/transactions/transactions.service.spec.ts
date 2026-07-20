@@ -139,8 +139,9 @@ describe('TransactionsService', () => {
     jest.clearAllMocks();
   });
 
-  const userExists = () =>
+  const userExists = (): void => {
     mockPrisma.user.findUnique.mockResolvedValue({ id: BigInt(1) });
+  };
 
   describe('getUserTransactions — running balance', () => {
     it('returns empty array when there are no transactions', async () => {

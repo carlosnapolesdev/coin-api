@@ -410,8 +410,9 @@ describe('AuthService', () => {
   });
 
   describe('resendVerification', () => {
-    const setUser = (user: unknown) =>
+    const setUser = (user: unknown): void => {
       mockPrisma.user.findFirst.mockResolvedValue(user);
+    };
 
     beforeEach(() => {
       mockConfig.get.mockImplementation((key: string) =>
