@@ -98,4 +98,30 @@ export class MailService {
     ].join('\n');
     await this.send(email, 'Restablece tu contraseña de Crecik', html, text);
   }
+
+  async sendEmailVerification(email: string, verifyUrl: string): Promise<void> {
+    const html = [
+      '<p>Hola,</p>',
+      '<p>Gracias por crear tu cuenta de Crecik. Solo falta confirmar que esta dirección es tuya.</p>',
+      `<p><a href="${verifyUrl}">Confirmar mi correo</a></p>`,
+      `<p>Si el enlace no funciona, copia esta dirección en tu navegador:<br>${verifyUrl}</p>`,
+      '<p>El enlace caduca en 24 horas. Si no has creado ninguna cuenta, ignora este correo.</p>',
+      '<p>— El equipo de Crecik</p>',
+    ].join('');
+    // Texto explícito en vez de derivado: la versión en texto plano es la que
+    // leen los filtros y conviene que se sostenga por sí sola.
+    const text = [
+      'Hola,',
+      '',
+      'Gracias por crear tu cuenta de Crecik. Solo falta confirmar que esta dirección es tuya.',
+      '',
+      `Abre esta dirección para confirmarla: ${verifyUrl}`,
+      '',
+      'El enlace caduca en 24 horas.',
+      'Si no has creado ninguna cuenta, ignora este correo.',
+      '',
+      '— El equipo de Crecik',
+    ].join('\n');
+    await this.send(email, 'Confirma tu correo de Crecik', html, text);
+  }
 }

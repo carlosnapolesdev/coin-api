@@ -18,6 +18,7 @@ import type {
 } from './dto/auth-response.dto';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
+import { ResendVerificationDto, VerifyEmailDto } from './dto';
 import type { AuthenticatedUser } from './strategies/jwt.strategy';
 
 @Controller('auth')
@@ -63,5 +64,23 @@ export class AuthController {
   @Throttle({ default: { limit: 10, ttl: 60000 } })
   async resetPassword(@Body() dto: ResetPasswordDto): Promise<void> {
     return this.authService.resetPassword(dto);
+  }
+
+  @Post('verify-email')
+  @Public()
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @UseGuards(ThrottlerGuard)
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
+  async verifyEmail(@Body() dto: VerifyEmailDto): Promise<void> {
+    return this.authService.verifyEmail(dto);
+  }
+
+  @Post('resend-verification')
+  @Public()
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @UseGuards(ThrottlerGuard)
+  @Throttle({ default: { limit: 3, ttl: 60000 } })
+  async resendVerification(@Body() dto: ResendVerificationDto): Promise<void> {
+    return this.authService.resendVerification(dto);
   }
 }

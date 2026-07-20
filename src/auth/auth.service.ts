@@ -1,26 +1,30 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
-import { User } from '@prisma/client';
+import { Prisma, User } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'node:crypto';
 import { CategoriesService } from '../categories/categories.service';
 import { CurrenciesService } from '../currencies/currencies.service';
 import { MailService } from '../mail/mail.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { credentialsCutoff } from '../common/credentials-cutoff';
 import {
   AuthResponseDto,
+  AuthTokenDto,
   RegisterResponseDto,
   UserProfileDto,
 } from './dto/auth-response.dto';
 import { normalizeOnboardingState } from '../common/onboarding-state';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
+import { ResendVerificationDto, VerifyEmailDto } from './dto';
 import type { ForgotPasswordDto, ResetPasswordDto } from '../users/dto';
 import { AuthenticatedUser } from './strategies/jwt.strategy';
 
@@ -29,6 +33,8 @@ export class AuthService {
   private static readonly DEFAULT_LANGUAGE = 'en';
   private static readonly BCRYPT_ROUNDS = 10;
   private static readonly RESET_TOKEN_TTL_MS = 60 * 60 * 1000;
+  private static readonly VERIFICATION_TOKEN_TTL_MS = 24 * 60 * 60 * 1000;
+  private static readonly RESEND_MAX_PER_HOUR = 3;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -72,7 +78,7 @@ export class AuthService {
     const language = this.resolveLanguage(dto.language);
     const now = new Date();
 
-    const user = await this.prisma.$transaction(async (tx) => {
+    const { created, rawToken } = await this.prisma.$transaction(async (tx) => {
       const created = await tx.user.create({
         data: {
           fullName: dto.fullName.trim(),
@@ -102,10 +108,42 @@ export class AuthService {
         tx,
       );
 
-      return created;
+      const verificationToken = await this.createVerificationToken(
+        created.id,
+        tx,
+      );
+      return { created, rawToken: verificationToken };
     });
 
-    return this.toRegisterResponse(user);
+    // Outside the transaction on purpose: a transport hiccup must not roll back
+    // a created account. The user can always ask for a new link.
+    await this.mail.sendEmailVerification(
+      created.email!,
+      this.verificationUrl(rawToken),
+    );
+
+    return this.toRegisterResponse(created);
+  }
+
+  private async createVerificationToken(
+    userId: bigint,
+    tx: Prisma.TransactionClient,
+  ): Promise<string> {
+    const rawToken = crypto.randomBytes(32).toString('hex');
+    await tx.emailVerificationToken.create({
+      data: {
+        userId,
+        tokenHash: this.hashToken(rawToken),
+        expiresAt: new Date(Date.now() + AuthService.VERIFICATION_TOKEN_TTL_MS),
+      },
+    });
+    return rawToken;
+  }
+
+  private verificationUrl(rawToken: string): string {
+    const appUrl =
+      this.config.get<string>('APP_URL') || 'http://localhost:5173';
+    return `${appUrl}/verify-email?token=${rawToken}`;
   }
 
   async login(dto: LoginDto): Promise<AuthResponseDto> {
@@ -128,12 +166,26 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    const rememberMe = dto.rememberMe ?? false;
+    // 403 with a code, not 401: the client has to tell this apart from bad
+    // credentials to offer the resend. This is not an enumeration vector —
+    // reaching it requires already knowing the password.
+    if (!user.emailVerifiedAt) {
+      throw new ForbiddenException({
+        code: 'EMAIL_NOT_VERIFIED',
+        message: 'Email address has not been verified',
+      });
+    }
+
+    const issued = this.issueToken(user, dto.rememberMe ?? false);
+    return { ...issued, user: this.toUserProfile(user) };
+  }
+
+  /** Mints a token for an already-authenticated user. */
+  issueToken(user: User, rememberMe = false): AuthTokenDto {
     const expirationMs = rememberMe
       ? (this.config.get<number>('JWT_REMEMBER_ME_EXPIRATION_MS') ?? 604800000)
       : (this.config.get<number>('JWT_EXPIRATION_MS') ?? 3600000);
 
-    const expiresAt = new Date(Date.now() + expirationMs);
     const token = this.jwtService.sign(
       {},
       {
@@ -147,8 +199,7 @@ export class AuthService {
     return {
       token,
       tokenType: 'Bearer',
-      expiresAt,
-      user: this.toUserProfile(user),
+      expiresAt: new Date(Date.now() + expirationMs),
     };
   }
 
@@ -163,7 +214,7 @@ export class AuthService {
     }
 
     const rawToken = crypto.randomBytes(32).toString('hex');
-    const tokenHash = this.hashResetToken(rawToken);
+    const tokenHash = this.hashToken(rawToken);
     await this.prisma.passwordResetToken.create({
       data: {
         userId: user.id,
@@ -179,7 +230,7 @@ export class AuthService {
   }
 
   async resetPassword(dto: ResetPasswordDto): Promise<void> {
-    const tokenHash = this.hashResetToken(dto.token);
+    const tokenHash = this.hashToken(dto.token);
     const record = await this.prisma.passwordResetToken.findFirst({
       where: {
         tokenHash,
@@ -195,19 +246,98 @@ export class AuthService {
       dto.newPassword,
       AuthService.BCRYPT_ROUNDS,
     );
+    const now = new Date();
     await this.prisma.$transaction(async (tx) => {
       await tx.user.update({
         where: { id: record.userId },
-        data: { passwordHash, updatedAt: new Date() },
+        data: {
+          passwordHash,
+          credentialsChangedAt: credentialsCutoff(now),
+          updatedAt: now,
+        },
       });
       await tx.passwordResetToken.update({
         where: { id: record.id },
-        data: { usedAt: new Date() },
+        data: { usedAt: now },
+      });
+      // Asking for three resets used to leave the other two usable for an hour
+      // after the first one landed. A completed reset burns all of them.
+      await tx.passwordResetToken.updateMany({
+        where: { userId: record.userId, usedAt: null },
+        data: { usedAt: now },
       });
     });
   }
 
-  private hashResetToken(rawToken: string): string {
+  async resendVerification(dto: ResendVerificationDto): Promise<void> {
+    const normalizedEmail = dto.email.trim().toLowerCase();
+    const user = await this.prisma.user.findFirst({
+      where: { email: { equals: normalizedEmail, mode: 'insensitive' } },
+      select: { id: true, email: true, emailVerifiedAt: true },
+    });
+
+    // Every early return below resolves silently: an observable difference
+    // between "unknown", "already verified" and "rate limited" would turn this
+    // endpoint into an oracle for which addresses are registered.
+    if (!user || user.emailVerifiedAt) {
+      return;
+    }
+
+    // Counting rows beats a rate-limiter store: the tokens are already
+    // persisted with createdAt, and NestJS's throttler keys on IP, which is
+    // useless for protecting a third party's inbox from a rotating attacker.
+    const recent = await this.prisma.emailVerificationToken.count({
+      where: {
+        userId: user.id,
+        createdAt: { gt: new Date(Date.now() - 60 * 60 * 1000) },
+      },
+    });
+    if (recent >= AuthService.RESEND_MAX_PER_HOUR) {
+      return;
+    }
+
+    const rawToken = await this.prisma.$transaction((tx) =>
+      this.createVerificationToken(user.id, tx),
+    );
+    await this.mail.sendEmailVerification(
+      user.email!,
+      this.verificationUrl(rawToken),
+    );
+  }
+
+  async verifyEmail(dto: VerifyEmailDto): Promise<void> {
+    const record = await this.prisma.emailVerificationToken.findFirst({
+      where: {
+        tokenHash: this.hashToken(dto.token),
+        usedAt: null,
+        expiresAt: { gt: new Date() },
+      },
+      include: { user: { select: { emailVerifiedAt: true } } },
+    });
+    // Invalid, expired and already-used collapse into one message on purpose:
+    // telling them apart confirms to an attacker that a token once existed.
+    if (!record) {
+      throw new BadRequestException('Invalid or expired token');
+    }
+
+    const now = new Date();
+    await this.prisma.$transaction(async (tx) => {
+      // Clicking the link twice must not look like a failure, so an already
+      // verified account keeps its original date and still burns the token.
+      if (!record.user.emailVerifiedAt) {
+        await tx.user.update({
+          where: { id: record.userId },
+          data: { emailVerifiedAt: now },
+        });
+      }
+      await tx.emailVerificationToken.update({
+        where: { id: record.id },
+        data: { usedAt: now },
+      });
+    });
+  }
+
+  private hashToken(rawToken: string): string {
     return crypto.createHash('sha256').update(rawToken).digest('hex');
   }
 

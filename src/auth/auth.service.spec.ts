@@ -22,10 +22,21 @@ describe('AuthService', () => {
       create: jest.fn(),
       findFirst: jest.fn(),
       update: jest.fn(),
+      updateMany: jest.fn(),
+    },
+    emailVerificationToken: {
+      create: jest.fn(),
+      findFirst: jest.fn(),
+      update: jest.fn(),
+      updateMany: jest.fn(),
+      count: jest.fn(),
     },
     $transaction: jest.fn(),
   };
-  const mockMail = { sendPasswordReset: jest.fn() };
+  const mockMail = {
+    sendPasswordReset: jest.fn(),
+    sendEmailVerification: jest.fn(),
+  };
   const mockConfig = { get: jest.fn() };
   const mockJwt = { sign: jest.fn() };
   const mockCurrencies = { assignCurrenciesToUser: jest.fn() };
@@ -155,6 +166,7 @@ describe('AuthService', () => {
         language: 'en',
         onboardingState: null,
         isActive: true,
+        emailVerifiedAt: new Date(),
         passwordHash,
       });
       mockConfig.get.mockReturnValue(3600000);
@@ -164,6 +176,45 @@ describe('AuthService', () => {
 
       const options = signSpy.mock.calls[0][1] as { subject: string };
       expect(options.subject).toBe('1');
+    });
+  });
+
+  describe('login email verification gate', () => {
+    const arrangeUser = async (emailVerifiedAt: Date | null) => {
+      mockPrisma.user.findFirst.mockResolvedValue({
+        id: BigInt(1),
+        email: 'user@test.com',
+        username: null,
+        fullName: 'User',
+        language: 'en',
+        isActive: true,
+        onboardingState: null,
+        emailVerifiedAt,
+        passwordHash: await bcrypt.hash('secret123', 10),
+      });
+    };
+
+    it('refuses an unverified account even with the right password', async () => {
+      await arrangeUser(null);
+      await expect(
+        service.login({ identifier: 'user@test.com', password: 'secret123' }),
+      ).rejects.toMatchObject({
+        status: 403,
+        response: { code: 'EMAIL_NOT_VERIFIED' },
+      });
+    });
+
+    it('lets a verified account through', async () => {
+      await arrangeUser(new Date());
+      mockConfig.get.mockReturnValue(3600000);
+      mockJwt.sign.mockReturnValue('signed');
+
+      const result = await service.login({
+        identifier: 'user@test.com',
+        password: 'secret123',
+      });
+
+      expect(result.token).toBe('signed');
     });
   });
 
@@ -236,6 +287,185 @@ describe('AuthService', () => {
         where: { id: 1n },
         data: expect.objectContaining({ usedAt: expect.any(Date) }),
       });
+    });
+  });
+
+  describe('resetPassword records the credential cutoff and burns every live sibling token', () => {
+    it('marks the cutoff, uses the presented token, and burns any sibling reset tokens', async () => {
+      const record = { id: BigInt(7), userId: BigInt(3) };
+      mockPrisma.passwordResetToken.findFirst.mockResolvedValue(record);
+
+      const tx = {
+        user: { update: jest.fn() },
+        passwordResetToken: { update: jest.fn(), updateMany: jest.fn() },
+      };
+      mockPrisma.$transaction.mockImplementation(
+        (cb: (t: typeof tx) => unknown) => cb(tx),
+      );
+
+      await service.resetPassword({ token: 'raw', newPassword: 'secret123' });
+
+      const userUpdate = tx.user.update.mock.calls[0][0];
+      expect(userUpdate.where).toEqual({ id: BigInt(3) });
+      expect(userUpdate.data.credentialsChangedAt).toBeInstanceOf(Date);
+      expect(userUpdate.data.credentialsChangedAt.getMilliseconds()).toBe(0);
+
+      expect(tx.passwordResetToken.update).toHaveBeenCalledWith({
+        where: { id: BigInt(7) },
+        data: { usedAt: expect.any(Date) },
+      });
+      expect(tx.passwordResetToken.updateMany).toHaveBeenCalledWith({
+        where: { userId: BigInt(3), usedAt: null },
+        data: { usedAt: expect.any(Date) },
+      });
+    });
+  });
+
+  describe('register', () => {
+    it('creates a verification token and emails the link', async () => {
+      mockPrisma.user.findFirst.mockResolvedValue(null);
+      mockConfig.get.mockImplementation((key: string) =>
+        key === 'APP_URL' ? 'https://crecik.com' : undefined,
+      );
+      const created = { id: BigInt(9), email: 'new@test.com', fullName: 'New' };
+      const tx = {
+        user: { create: jest.fn().mockResolvedValue(created) },
+        emailVerificationToken: { create: jest.fn() },
+      };
+      mockPrisma.$transaction.mockImplementation(
+        (cb: (t: typeof tx) => unknown) => cb(tx),
+      );
+      mockCurrencies.assignCurrenciesToUser.mockResolvedValue(undefined);
+      mockCategories.assignDefaultCategoriesToUser.mockResolvedValue(undefined);
+
+      await service.register({
+        fullName: 'New',
+        email: 'new@test.com',
+        password: 'secret123',
+        currencies: [],
+      });
+
+      expect(tx.emailVerificationToken.create).toHaveBeenCalled();
+      expect(mockMail.sendEmailVerification).toHaveBeenCalledWith(
+        'new@test.com',
+        expect.stringContaining('https://crecik.com/verify-email?token='),
+      );
+    });
+  });
+
+  describe('verifyEmail', () => {
+    it('marks the account verified and burns the token', async () => {
+      mockPrisma.emailVerificationToken.findFirst.mockResolvedValue({
+        id: BigInt(2),
+        userId: BigInt(5),
+        user: { emailVerifiedAt: null },
+      });
+      const tx = {
+        user: { update: jest.fn() },
+        emailVerificationToken: { update: jest.fn() },
+      };
+      mockPrisma.$transaction.mockImplementation(
+        (cb: (t: typeof tx) => unknown) => cb(tx),
+      );
+
+      await service.verifyEmail({ token: 'raw' });
+
+      expect(tx.user.update).toHaveBeenCalledWith({
+        where: { id: BigInt(5) },
+        data: { emailVerifiedAt: expect.any(Date) },
+      });
+      expect(tx.emailVerificationToken.update).toHaveBeenCalledWith({
+        where: { id: BigInt(2) },
+        data: { usedAt: expect.any(Date) },
+      });
+    });
+
+    it('is idempotent on an already verified account', async () => {
+      const verifiedAt = new Date('2026-07-01T00:00:00Z');
+      mockPrisma.emailVerificationToken.findFirst.mockResolvedValue({
+        id: BigInt(2),
+        userId: BigInt(5),
+        user: { emailVerifiedAt: verifiedAt },
+      });
+      const tx = {
+        user: { update: jest.fn() },
+        emailVerificationToken: { update: jest.fn() },
+      };
+      mockPrisma.$transaction.mockImplementation(
+        (cb: (t: typeof tx) => unknown) => cb(tx),
+      );
+
+      await service.verifyEmail({ token: 'raw' });
+
+      expect(tx.user.update).not.toHaveBeenCalled();
+      expect(tx.emailVerificationToken.update).toHaveBeenCalled();
+    });
+
+    it('rejects an invalid, expired or already used token', async () => {
+      mockPrisma.emailVerificationToken.findFirst.mockResolvedValue(null);
+      await expect(service.verifyEmail({ token: 'nope' })).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+  });
+
+  describe('resendVerification', () => {
+    const setUser = (user: unknown) =>
+      mockPrisma.user.findFirst.mockResolvedValue(user);
+
+    beforeEach(() => {
+      mockConfig.get.mockImplementation((key: string) =>
+        key === 'APP_URL' ? 'https://crecik.com' : undefined,
+      );
+      mockPrisma.$transaction.mockImplementation(
+        (cb: (t: unknown) => unknown) =>
+          cb({ emailVerificationToken: { create: jest.fn() } }),
+      );
+    });
+
+    it('sends a fresh link to an unverified account', async () => {
+      setUser({ id: BigInt(5), email: 'user@test.com', emailVerifiedAt: null });
+      mockPrisma.emailVerificationToken.count.mockResolvedValue(0);
+
+      await service.resendVerification({ email: 'user@test.com' });
+
+      expect(mockMail.sendEmailVerification).toHaveBeenCalledWith(
+        'user@test.com',
+        expect.stringContaining('https://crecik.com/verify-email?token='),
+      );
+    });
+
+    it('stays silent for an unknown address', async () => {
+      setUser(null);
+      await expect(
+        service.resendVerification({ email: 'ghost@test.com' }),
+      ).resolves.toBeUndefined();
+      expect(mockMail.sendEmailVerification).not.toHaveBeenCalled();
+    });
+
+    it('stays silent for an already verified account', async () => {
+      setUser({
+        id: BigInt(5),
+        email: 'user@test.com',
+        emailVerifiedAt: new Date(),
+      });
+      await expect(
+        service.resendVerification({ email: 'user@test.com' }),
+      ).resolves.toBeUndefined();
+      expect(mockMail.sendEmailVerification).not.toHaveBeenCalled();
+    });
+
+    // Without a per-address cap this endpoint is a way to flood someone else's
+    // inbox at our expense. Throttling must not be observable, so it still
+    // resolves — a 429 would turn it into an existence oracle.
+    it('stops sending past the hourly cap without signalling it', async () => {
+      setUser({ id: BigInt(5), email: 'user@test.com', emailVerifiedAt: null });
+      mockPrisma.emailVerificationToken.count.mockResolvedValue(3);
+
+      await expect(
+        service.resendVerification({ email: 'user@test.com' }),
+      ).resolves.toBeUndefined();
+      expect(mockMail.sendEmailVerification).not.toHaveBeenCalled();
     });
   });
 });

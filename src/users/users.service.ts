@@ -6,9 +6,11 @@ import {
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../prisma/prisma.service';
 import type {
+  AuthTokenDto,
   OnboardingState,
   UserProfileDto,
 } from '../auth/dto/auth-response.dto';
+import { AuthService } from '../auth/auth.service';
 import type {
   ChangePasswordDto,
   UpdateOnboardingDto,
@@ -16,6 +18,7 @@ import type {
 } from './dto';
 import { normalizeOnboardingState } from '../common/onboarding-state';
 import { MailService } from '../mail/mail.service';
+import { credentialsCutoff } from '../common/credentials-cutoff';
 
 @Injectable()
 export class UsersService {
@@ -25,6 +28,7 @@ export class UsersService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly mail: MailService,
+    private readonly auth: AuthService,
   ) {}
 
   async updateProfile(
@@ -81,7 +85,10 @@ export class UsersService {
     return normalizeOnboardingState(rows[0].onboarding_state);
   }
 
-  async changePassword(userId: number, dto: ChangePasswordDto): Promise<void> {
+  async changePassword(
+    userId: number,
+    dto: ChangePasswordDto,
+  ): Promise<AuthTokenDto> {
     const user = await this.prisma.user.findUnique({
       where: { id: BigInt(userId) },
       select: { passwordHash: true, email: true },
@@ -102,14 +109,24 @@ export class UsersService {
       dto.newPassword,
       UsersService.BCRYPT_ROUNDS,
     );
-    await this.prisma.user.update({
+    const now = new Date();
+    const updated = await this.prisma.user.update({
       where: { id: BigInt(userId) },
-      data: { passwordHash, updatedAt: new Date() },
+      data: {
+        passwordHash,
+        credentialsChangedAt: credentialsCutoff(now),
+        updatedAt: now,
+      },
     });
 
     if (user.email) {
       await this.sendPasswordChangedNotice(user.email);
     }
+
+    // The cutoff above kills this caller's own token too. Re-issuing here keeps
+    // the session that just proved it knows the password, while every other
+    // device is signed out — which is the whole point of the revocation.
+    return this.auth.issueToken(updated);
   }
 
   /**

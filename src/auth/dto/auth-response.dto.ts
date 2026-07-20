@@ -30,3 +30,9 @@ export interface AuthResponseDto {
   expiresAt: Date;
   user: UserProfileDto;
 }
+
+export interface AuthTokenDto {
+  token: string;
+  tokenType: 'Bearer';
+  expiresAt: Date;
+}

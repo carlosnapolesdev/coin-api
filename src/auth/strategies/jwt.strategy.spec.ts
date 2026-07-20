@@ -161,3 +161,94 @@ describe('JwtStrategy payload validation', () => {
     ).rejects.toThrow(UnauthorizedException);
   });
 });
+
+describe('JwtStrategy credential revocation', () => {
+  let app: INestApplication;
+  let server: Server;
+  let credentialsChangedAt: Date | null;
+
+  const signAt = (issuedAtSeconds: number) =>
+    new JwtService({
+      secret: JWT_SECRET,
+      signOptions: { issuer: ISSUER },
+    }).sign(
+      { iat: issuedAtSeconds },
+      {
+        subject: USER_ID,
+        expiresIn: issuedAtSeconds + 3600 - Math.floor(Date.now() / 1000),
+      },
+    );
+
+  beforeAll(async () => {
+    const configMock = {
+      get: (key: string, defaultValue?: string) =>
+        ({ JWT_SECRET, JWT_ISSUER: ISSUER })[key] ?? defaultValue,
+    };
+    const prismaMock = {
+      user: {
+        findUnique: jest.fn().mockImplementation(({ where }) =>
+          where?.id === 1n
+            ? Promise.resolve({
+                id: BigInt(1),
+                email: 'user@example.com',
+                isActive: true,
+                fullName: 'Test User',
+                username: null,
+                language: 'en',
+                onboardingState: null,
+                credentialsChangedAt,
+              })
+            : Promise.resolve(null),
+        ),
+      },
+    };
+
+    const moduleRef = await Test.createTestingModule({
+      imports: [PassportModule],
+      controllers: [ProbeController],
+      providers: [
+        JwtStrategy,
+        { provide: ConfigService, useValue: configMock },
+        { provide: PrismaService, useValue: prismaMock },
+      ],
+    }).compile();
+
+    app = moduleRef.createNestApplication();
+    await app.init();
+    server = app.getHttpServer() as Server;
+  });
+
+  afterAll(async () => {
+    await app.close();
+  });
+
+  it('accepts a token when no revocation is recorded', async () => {
+    credentialsChangedAt = null;
+    const nowSeconds = Math.floor(Date.now() / 1000);
+    await request(server)
+      .get('/probe')
+      .set('Authorization', `Bearer ${signAt(nowSeconds)}`)
+      .expect(200);
+  });
+
+  it('rejects a token issued before the cutoff', async () => {
+    const nowSeconds = Math.floor(Date.now() / 1000);
+    credentialsChangedAt = new Date(nowSeconds * 1000);
+    await request(server)
+      .get('/probe')
+      .set('Authorization', `Bearer ${signAt(nowSeconds - 1)}`)
+      .expect(401);
+  });
+
+  // Protects the silent re-authentication: the token minted by the very request
+  // that changed the password carries the same `iat` as the cutoff. If someone
+  // "fixes" the truncation to a millisecond comparison, this test fails.
+  it('accepts a token issued in the same second as the cutoff', async () => {
+    const nowSeconds = Math.floor(Date.now() / 1000);
+    credentialsChangedAt = new Date(nowSeconds * 1000);
+    await request(server)
+      .get('/probe')
+      .set('Authorization', `Bearer ${signAt(nowSeconds)}`)
+      .expect(200);
+  });
+});

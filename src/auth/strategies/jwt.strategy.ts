@@ -47,6 +47,15 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     if (!user || !user.isActive) {
       throw new UnauthorizedException('Authentication required');
     }
+
+    // Changing a password revokes every token issued before that moment. Both
+    // sides are compared in whole seconds — see credentialsCutoff for why.
+    if (
+      user.credentialsChangedAt &&
+      payload.iat < Math.floor(user.credentialsChangedAt.getTime() / 1000)
+    ) {
+      throw new UnauthorizedException('Authentication required');
+    }
     return {
       id: Number(user.id),
       email: user.email ?? '',

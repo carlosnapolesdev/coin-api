@@ -2,6 +2,7 @@ import { Body, Controller, Patch } from '@nestjs/common';
 import { CurrentUser } from '../common/decorators';
 import type { AuthenticatedUser } from '../auth/strategies/jwt.strategy';
 import type {
+  AuthTokenDto,
   OnboardingState,
   UserProfileDto,
 } from '../auth/dto/auth-response.dto';
@@ -36,7 +37,7 @@ export class UsersController {
   changePassword(
     @CurrentUser() user: AuthenticatedUser,
     @Body() dto: ChangePasswordDto,
-  ): Promise<void> {
+  ): Promise<AuthTokenDto> {
     return this.usersService.changePassword(user.id, dto);
   }
 }

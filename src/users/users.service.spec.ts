@@ -3,6 +3,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../prisma/prisma.service';
 import { MailService } from '../mail/mail.service';
+import { AuthService } from '../auth/auth.service';
 import { UsersService } from './users.service';
 
 describe('UsersService', () => {
@@ -16,6 +17,7 @@ describe('UsersService', () => {
     $queryRaw: jest.fn(),
   };
   const mockMail = { send: jest.fn() };
+  const mockAuth = { issueToken: jest.fn() };
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -23,6 +25,7 @@ describe('UsersService', () => {
         UsersService,
         { provide: PrismaService, useValue: mockPrisma },
         { provide: MailService, useValue: mockMail },
+        { provide: AuthService, useValue: mockAuth },
       ],
     }).compile();
 
@@ -287,6 +290,30 @@ describe('UsersService', () => {
       };
       expect(data.passwordHash).not.toEqual('NewPass1');
       expect(await bcrypt.compare('NewPass1', data.passwordHash)).toBe(true);
+    });
+
+    it('records the cutoff and returns a freshly issued token', async () => {
+      const hash = await bcrypt.hash('oldpass1', 10);
+      mockPrisma.user.findUnique.mockResolvedValue({
+        passwordHash: hash,
+        email: 'user@test.com',
+      });
+      mockPrisma.user.update.mockResolvedValue({ id: BigInt(4) });
+      mockAuth.issueToken.mockReturnValue({
+        token: 'fresh',
+        tokenType: 'Bearer',
+        expiresAt: new Date(),
+      });
+
+      const result = await service.changePassword(4, {
+        currentPassword: 'oldpass1',
+        newPassword: 'newpass1',
+      });
+
+      const update = mockPrisma.user.update.mock.calls[0][0];
+      expect(update.data.credentialsChangedAt).toBeInstanceOf(Date);
+      expect(update.data.credentialsChangedAt.getMilliseconds()).toBe(0);
+      expect(result.token).toBe('fresh');
     });
   });
 });
