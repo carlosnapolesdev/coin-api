@@ -29,6 +29,7 @@ describe('envValidationSchema — CORS_ORIGIN', () => {
         NODE_ENV: 'production',
         CORS_ORIGIN: 'https://app.example.com,https://other.example.com',
         APP_URL: 'https://app.example.com',
+        MAIL_FROM: 'Crecik <no-reply@crecik.com>',
       },
       { abortEarly: false },
     );
@@ -49,6 +50,7 @@ describe('envValidationSchema — APP_URL', () => {
     ...baseEnv,
     NODE_ENV: 'production',
     CORS_ORIGIN: 'https://app.example.com',
+    MAIL_FROM: 'Crecik <no-reply@crecik.com>',
   };
 
   it('fails in production when APP_URL is missing', () => {
@@ -83,6 +85,46 @@ describe('envValidationSchema — APP_URL', () => {
   });
 
   it('allows empty APP_URL outside production', () => {
+    const { error } = envValidationSchema.validate(
+      { ...baseEnv, NODE_ENV: 'development' },
+      { abortEarly: false },
+    );
+    expect(error).toBeUndefined();
+  });
+});
+
+describe('envValidationSchema — MAIL_FROM', () => {
+  const prodEnv = {
+    ...baseEnv,
+    NODE_ENV: 'production',
+    CORS_ORIGIN: 'https://app.example.com',
+    APP_URL: 'https://crecik.com',
+  };
+
+  it('fails in production when MAIL_FROM is missing', () => {
+    const { error } = envValidationSchema.validate(prodEnv, {
+      abortEarly: false,
+    });
+    expect(error?.message).toContain('MAIL_FROM');
+  });
+
+  it('fails in production when MAIL_FROM is empty', () => {
+    const { error } = envValidationSchema.validate(
+      { ...prodEnv, MAIL_FROM: '' },
+      { abortEarly: false },
+    );
+    expect(error?.message).toContain('MAIL_FROM');
+  });
+
+  it('passes in production when MAIL_FROM is set', () => {
+    const { error } = envValidationSchema.validate(
+      { ...prodEnv, MAIL_FROM: 'Crecik <no-reply@crecik.com>' },
+      { abortEarly: false },
+    );
+    expect(error).toBeUndefined();
+  });
+
+  it('allows empty MAIL_FROM outside production', () => {
     const { error } = envValidationSchema.validate(
       { ...baseEnv, NODE_ENV: 'development' },
       { abortEarly: false },

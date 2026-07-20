@@ -2,6 +2,7 @@ import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../prisma/prisma.service';
+import { MailService } from '../mail/mail.service';
 import { UsersService } from './users.service';
 
 describe('UsersService', () => {
@@ -14,17 +15,20 @@ describe('UsersService', () => {
     },
     $queryRaw: jest.fn(),
   };
+  const mockMail = { send: jest.fn() };
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         UsersService,
         { provide: PrismaService, useValue: mockPrisma },
+        { provide: MailService, useValue: mockMail },
       ],
     }).compile();
 
     service = module.get<UsersService>(UsersService);
     jest.clearAllMocks();
+    mockMail.send.mockResolvedValue(true);
   });
 
   describe('updateProfile', () => {
@@ -209,6 +213,62 @@ describe('UsersService', () => {
         }),
       ).rejects.toThrow(BadRequestException);
       expect(mockPrisma.user.update).not.toHaveBeenCalled();
+    });
+
+    it('notifies the account owner by email after a successful change', async () => {
+      // Si alguien secuestra la cuenta y cambia la contraseña, el dueño no se
+      // entera hasta que intenta entrar. El aviso llega a su bandeja, que el
+      // atacante no controla.
+      mockPrisma.user.findUnique.mockResolvedValue({
+        passwordHash: await bcrypt.hash('right', 10),
+        email: 'user@test.com',
+      });
+
+      await service.changePassword(1, {
+        currentPassword: 'right',
+        newPassword: 'NewPass1',
+      });
+
+      expect(mockMail.send).toHaveBeenCalledTimes(1);
+      const [to, subject, html] = mockMail.send.mock.calls[0] as string[];
+      expect(to).toBe('user@test.com');
+      expect(subject).toContain('contraseña');
+      // No debe llevar enlaces de acción: un correo de aviso que pide pulsar
+      // algo es indistinguible de un phishing.
+      expect(html).not.toContain('<a href');
+    });
+
+    it('does not notify when the current password is wrong', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({
+        passwordHash: await bcrypt.hash('right', 10),
+        email: 'user@test.com',
+      });
+
+      await expect(
+        service.changePassword(1, {
+          currentPassword: 'wrong',
+          newPassword: 'NewPass1',
+        }),
+      ).rejects.toThrow(BadRequestException);
+      expect(mockMail.send).not.toHaveBeenCalled();
+    });
+
+    it('still changes the password when the notification fails', async () => {
+      // El aviso es best-effort: que no salga el correo no puede impedir que el
+      // usuario cambie su contraseña.
+      mockPrisma.user.findUnique.mockResolvedValue({
+        passwordHash: await bcrypt.hash('right', 10),
+        email: 'user@test.com',
+      });
+      mockMail.send.mockResolvedValue(false);
+
+      await expect(
+        service.changePassword(1, {
+          currentPassword: 'right',
+          newPassword: 'NewPass1',
+        }),
+      ).resolves.toBeUndefined();
+      expect(mockPrisma.user.update).toHaveBeenCalledTimes(1);
     });
 
     it('hashes and stores the new password when current password is correct', async () => {

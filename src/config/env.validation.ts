@@ -41,5 +41,18 @@ export const envValidationSchema = Joi.object({
     otherwise: Joi.string().allow('').default(''),
   }),
 
+  // Remitente de los correos. En producción no se acepta el default de
+  // desarrollo para forzar un dominio verificado en Resend.
+  MAIL_FROM: Joi.string().when('NODE_ENV', {
+    is: 'production',
+    then: Joi.string().min(1).required().messages({
+      'any.required':
+        'MAIL_FROM is required in production (verified Resend sender, e.g. "Crecik <no-reply@crecik.com>")',
+      'string.empty':
+        'MAIL_FROM is required in production (verified Resend sender, e.g. "Crecik <no-reply@crecik.com>")',
+    }),
+    otherwise: Joi.string().allow('').default(''),
+  }),
+
   AAAPIS_TOKEN: Joi.string().allow('').default(''),
 });

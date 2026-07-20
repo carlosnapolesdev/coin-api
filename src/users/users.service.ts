@@ -15,13 +15,17 @@ import type {
   UpdateProfileDto,
 } from './dto';
 import { normalizeOnboardingState } from '../common/onboarding-state';
+import { MailService } from '../mail/mail.service';
 
 @Injectable()
 export class UsersService {
   private static readonly DEFAULT_LANGUAGE = 'en';
   private static readonly BCRYPT_ROUNDS = 10;
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly mail: MailService,
+  ) {}
 
   async updateProfile(
     userId: number,
@@ -80,7 +84,7 @@ export class UsersService {
   async changePassword(userId: number, dto: ChangePasswordDto): Promise<void> {
     const user = await this.prisma.user.findUnique({
       where: { id: BigInt(userId) },
-      select: { passwordHash: true },
+      select: { passwordHash: true, email: true },
     });
     if (!user?.passwordHash) {
       throw new NotFoundException('User was not found');
@@ -102,5 +106,45 @@ export class UsersService {
       where: { id: BigInt(userId) },
       data: { passwordHash, updatedAt: new Date() },
     });
+
+    if (user.email) {
+      await this.sendPasswordChangedNotice(user.email);
+    }
+  }
+
+  /**
+   * Aviso best-effort: `send` devuelve false en vez de lanzar, así que un fallo
+   * de correo no revierte un cambio de contraseña que ya se guardó.
+   *
+   * Sin enlaces a propósito. Un correo de seguridad que pide pulsar algo educa
+   * al usuario a pulsar enlaces en correos de seguridad, que es justo lo que
+   * explota el phishing. Si no reconoce el cambio, que entre por su cuenta.
+   */
+  private async sendPasswordChangedNotice(email: string): Promise<void> {
+    const html = [
+      '<p>Hola,</p>',
+      '<p>La contraseña de tu cuenta de Crecik acaba de cambiarse.</p>',
+      '<p>Si has sido tú, no tienes que hacer nada.</p>',
+      '<p>Si no reconoces este cambio, alguien puede tener acceso a tu cuenta: entra en Crecik y restablece tu contraseña cuanto antes.</p>',
+      '<p>— El equipo de Crecik</p>',
+    ].join('');
+    const text = [
+      'Hola,',
+      '',
+      'La contraseña de tu cuenta de Crecik acaba de cambiarse.',
+      '',
+      'Si has sido tú, no tienes que hacer nada.',
+      '',
+      'Si no reconoces este cambio, alguien puede tener acceso a tu cuenta:',
+      'entra en Crecik y restablece tu contraseña cuanto antes.',
+      '',
+      '— El equipo de Crecik',
+    ].join('\n');
+    await this.mail.send(
+      email,
+      'Tu contraseña de Crecik ha cambiado',
+      html,
+      text,
+    );
   }
 }
