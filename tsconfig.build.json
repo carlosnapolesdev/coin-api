@@ -1,11 +1,13 @@
 {
   "extends": "./tsconfig.json",
-  "exclude": [
-    "node_modules",
-    "test",
-    "dist",
-    "**/*spec.ts",
-    "prisma.config.ts",
-    "prisma"
-  ]
+  // Whitelist src/ instead of blacklisting everything else. TypeScript derives
+  // the output layout from the common root of the compiled files, so a single
+  // .ts file outside src/ pushes the entrypoint down to dist/src/main.js and
+  // the Docker CMD (`node dist/main.js`) stops resolving. That broke the image
+  // three times — prisma.config.ts, prisma/, then scripts/send-digest.ts — and
+  // each fix only blacklisted the newest offender. Pinning the root to src/
+  // ends the whole class: anything outside it is never compiled. Standalone
+  // scripts run through ts-node and do not need to be.
+  "include": ["src/**/*"],
+  "exclude": ["**/*spec.ts"]
 }
