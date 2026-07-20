@@ -1152,4 +1152,40 @@ describe('TransactionsService', () => {
       expect(result.effectiveDate).toBe('2024-06-15');
     });
   });
+
+  describe('exportCsv — formula injection', () => {
+    it('quotes the free-text cells a spreadsheet would execute', async () => {
+      // escape-formula.spec.ts proves the escaping itself. This proves it is
+      // actually wired into the export, which is the part a refactor breaks.
+      userExists();
+      mockPrisma.transaction.findMany.mockResolvedValue([
+        {
+          effectiveDate: new Date('2026-07-20'),
+          account: { name: '=SUM(A1)' },
+          userCategory: { name: '@import' },
+          type: TransactionType.EXPENSE,
+          amount: new Prisma.Decimal(-42.5),
+          payee: "=cmd|' /C calc'!A0",
+          paymentMethod: '+1',
+          status: TransactionStatus.CLEARED,
+          tags: '-1+1',
+          memo: 'Groceries',
+        },
+      ]);
+
+      const csv = await service.exportCsv(1, {});
+
+      expect(csv).toContain("'=SUM(A1)");
+      expect(csv).toContain("'@import");
+      expect(csv).toContain("'=cmd|");
+      expect(csv).toContain("'+1");
+      expect(csv).toContain("'-1+1");
+
+      // Ordinary text and the machine-produced columns stay legible: quoting a
+      // date or an amount would break the spreadsheet's own parsing.
+      expect(csv).toContain('Groceries');
+      expect(csv).toContain('2026-07-20');
+      expect(csv).toContain('-42.5');
+    });
+  });
 });

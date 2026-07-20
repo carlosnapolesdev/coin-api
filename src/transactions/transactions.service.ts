@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { stringify } from 'csv-stringify/sync';
+import { escapeCsvFormula } from '../common/csv/escape-formula';
 import { PrismaService } from '../prisma/prisma.service';
 import { TagsService } from '../tags/tags.service';
 import { TransactionStatus, TransactionType } from '../common/enums';
@@ -132,17 +133,20 @@ export class TransactionsService {
       orderBy: [{ effectiveDate: 'desc' }, { id: 'desc' }],
     });
 
+    // Only the free-text columns are escaped. `date`, `type`, `amount` and
+    // `status` are produced here from typed values, never from user input, and
+    // quoting them would break the spreadsheet's number and date parsing.
     const records = rows.map((t) => ({
       date: t.effectiveDate.toISOString().split('T')[0],
-      account: t.account.name,
-      category: t.userCategory?.name ?? '',
+      account: escapeCsvFormula(t.account.name),
+      category: escapeCsvFormula(t.userCategory?.name ?? ''),
       type: t.type,
       amount: t.amount.toNumber(),
-      payee: t.payee ?? '',
-      paymentMethod: t.paymentMethod ?? '',
+      payee: escapeCsvFormula(t.payee ?? ''),
+      paymentMethod: escapeCsvFormula(t.paymentMethod ?? ''),
       status: t.status,
-      tags: t.tags ?? '',
-      memo: t.memo ?? '',
+      tags: escapeCsvFormula(t.tags ?? ''),
+      memo: escapeCsvFormula(t.memo ?? ''),
     }));
 
     return stringify(records, { header: true, columns: EXPORT_COLUMNS });
