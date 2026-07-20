@@ -30,6 +30,24 @@ export default tseslint.config(
       '@typescript-eslint/no-floating-promises': 'warn',
       '@typescript-eslint/no-unsafe-argument': 'warn',
       "prettier/prettier": ["error", { endOfLine: "auto" }],
+      // `no-empty` no sirve: ignora los bloques que contienen un comentario, que
+      // es la forma que toman los catch silenciados (`catch { // ignore }`).
+      // Estos selectores miran el AST, donde los comentarios no son sentencias.
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: 'CatchClause > BlockStatement[body.length=0]',
+          message:
+            'No silencies errores: reporta el error, y propágalo si el llamador debe enterarse.',
+        },
+        {
+          selector:
+            "CallExpression[callee.property.name='catch'] > ArrowFunctionExpression > BlockStatement[body.length=0]",
+          message:
+            'No silencies errores: reporta el error, y propágalo si el llamador debe enterarse.',
+        },
+      ],
+      '@typescript-eslint/no-unused-vars': ['error', { caughtErrors: 'all' }],
     },
   },
   {
