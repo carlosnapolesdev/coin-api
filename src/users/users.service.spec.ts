@@ -17,7 +17,10 @@ describe('UsersService', () => {
     $queryRaw: jest.fn(),
   };
   const mockMail = { send: jest.fn() };
-  const mockAuth = { issueToken: jest.fn() };
+  const mockAuth = {
+    issueToken: jest.fn(),
+    computeRequiresCurrencySetup: jest.fn(),
+  };
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -44,6 +47,7 @@ describe('UsersService', () => {
         language: 'es',
         onboardingState: null,
       });
+      mockAuth.computeRequiresCurrencySetup.mockResolvedValue(false);
 
       const result = await service.updateProfile(1, {
         fullName: 'New Name',
@@ -70,6 +74,7 @@ describe('UsersService', () => {
           reportsVisited: false,
           tourVersion: 0,
         },
+        requiresCurrencySetup: false,
       });
     });
 
@@ -88,6 +93,7 @@ describe('UsersService', () => {
           tourVersion: '2',
         },
       });
+      mockAuth.computeRequiresCurrencySetup.mockResolvedValue(false);
 
       const result = await service.updateProfile(1, {});
 
@@ -111,6 +117,7 @@ describe('UsersService', () => {
           language: 'en',
           onboardingState: { tourVersion },
         });
+        mockAuth.computeRequiresCurrencySetup.mockResolvedValue(false);
 
         const result = await service.updateProfile(1, {});
 

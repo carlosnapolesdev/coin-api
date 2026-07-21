@@ -52,6 +52,9 @@ export class UsersService {
       username: user.username,
       language: user.language ?? UsersService.DEFAULT_LANGUAGE,
       onboardingState: normalizeOnboardingState(user.onboardingState),
+      requiresCurrencySetup: await this.auth.computeRequiresCurrencySetup(
+        user.id,
+      ),
     };
   }
 

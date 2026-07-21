@@ -13,6 +13,7 @@ export interface UserProfileDto {
   username: string | null;
   language: string;
   onboardingState: OnboardingState;
+  requiresCurrencySetup: boolean;
 }
 
 export interface RegisterResponseDto {

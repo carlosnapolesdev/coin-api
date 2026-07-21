@@ -24,7 +24,8 @@ import {
 import { normalizeOnboardingState } from '../common/onboarding-state';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
-import { ResendVerificationDto, VerifyEmailDto } from './dto';
+import { GoogleLoginDto, ResendVerificationDto, VerifyEmailDto } from './dto';
+import { GoogleTokenVerifier } from './google/google-token-verifier';
 import type { ForgotPasswordDto, ResetPasswordDto } from '../users/dto';
 import { AuthenticatedUser } from './strategies/jwt.strategy';
 
@@ -43,6 +44,7 @@ export class AuthService {
     private readonly currenciesService: CurrenciesService,
     private readonly categoriesService: CategoriesService,
     private readonly mail: MailService,
+    private readonly googleVerifier: GoogleTokenVerifier,
   ) {}
 
   async register(dto: RegisterDto): Promise<RegisterResponseDto> {
@@ -177,7 +179,78 @@ export class AuthService {
     }
 
     const issued = this.issueToken(user, dto.rememberMe ?? false);
-    return { ...issued, user: this.toUserProfile(user) };
+    return { ...issued, user: await this.toUserProfile(user) };
+  }
+
+  async loginWithGoogle(dto: GoogleLoginDto): Promise<AuthResponseDto> {
+    const identity = await this.googleVerifier.verify(dto.idToken);
+    const normalizedEmail = identity.email.trim().toLowerCase();
+
+    // 1) Known Google identity -> straight login.
+    const byGoogleId = await this.prisma.user.findFirst({
+      where: { googleId: identity.sub },
+    });
+    if (byGoogleId) {
+      return this.completeGoogleAuth(byGoogleId, dto.rememberMe ?? false);
+    }
+
+    // 2) Email already registered -> link, but only if Google vouches for it.
+    const byEmail = await this.prisma.user.findFirst({
+      where: { email: { equals: normalizedEmail, mode: 'insensitive' } },
+    });
+    if (byEmail) {
+      if (!identity.emailVerified) {
+        // Linking on an unverified email would let anyone controlling a Google
+        // account with a spoofable address take over an existing password
+        // account. Refuse instead.
+        throw new ForbiddenException({
+          code: 'GOOGLE_EMAIL_UNVERIFIED',
+          message: 'Google has not verified this email address',
+        });
+      }
+      const linked = await this.prisma.user.update({
+        where: { id: byEmail.id },
+        data: { googleId: identity.sub, updatedAt: new Date() },
+      });
+      return this.completeGoogleAuth(linked, dto.rememberMe ?? false);
+    }
+
+    // 3) New account: seed all default categories, no currency, no email
+    //    verification (Google already verified the address).
+    const language = AuthService.DEFAULT_LANGUAGE;
+    const now = new Date();
+    const created = await this.prisma.$transaction(async (tx) => {
+      const user = await tx.user.create({
+        data: {
+          fullName: identity.name,
+          email: normalizedEmail,
+          googleId: identity.sub,
+          passwordHash: null,
+          emailVerifiedAt: now,
+          language,
+          isActive: true,
+          createdAt: now,
+          updatedAt: now,
+        },
+      });
+      await this.categoriesService.assignDefaultCategoriesToUser(
+        user.id,
+        language,
+        undefined,
+        tx,
+      );
+      return user;
+    });
+
+    return this.completeGoogleAuth(created, dto.rememberMe ?? false);
+  }
+
+  private async completeGoogleAuth(
+    user: User,
+    rememberMe: boolean,
+  ): Promise<AuthResponseDto> {
+    const issued = this.issueToken(user, rememberMe);
+    return { ...issued, user: await this.toUserProfile(user) };
   }
 
   /** Mints a token for an already-authenticated user. */
@@ -341,7 +414,13 @@ export class AuthService {
     return crypto.createHash('sha256').update(rawToken).digest('hex');
   }
 
-  getProfile(authenticatedUser: AuthenticatedUser): UserProfileDto {
+  getGoogleConfig(): { clientId: string } {
+    return { clientId: this.config.get<string>('GOOGLE_CLIENT_ID') ?? '' };
+  }
+
+  async getProfile(
+    authenticatedUser: AuthenticatedUser,
+  ): Promise<UserProfileDto> {
     return {
       id: authenticatedUser.id,
       fullName: authenticatedUser.fullName ?? '',
@@ -351,7 +430,18 @@ export class AuthService {
       onboardingState: normalizeOnboardingState(
         authenticatedUser.onboardingState,
       ),
+      requiresCurrencySetup: await this.computeRequiresCurrencySetup(
+        BigInt(authenticatedUser.id),
+      ),
     };
+  }
+
+  /** True when the user has no active base currency (fresh Google sign-ups). */
+  async computeRequiresCurrencySetup(userId: bigint): Promise<boolean> {
+    const baseCount = await this.prisma.userCurrency.count({
+      where: { userId, isActive: true, isBase: true },
+    });
+    return baseCount === 0;
   }
 
   private resolveLanguage(language?: string): string {
@@ -370,7 +460,7 @@ export class AuthService {
     };
   }
 
-  private toUserProfile(user: User): UserProfileDto {
+  private async toUserProfile(user: User): Promise<UserProfileDto> {
     return {
       id: Number(user.id),
       fullName: user.fullName ?? '',
@@ -378,6 +468,7 @@ export class AuthService {
       username: user.username,
       language: user.language ?? AuthService.DEFAULT_LANGUAGE,
       onboardingState: normalizeOnboardingState(user.onboardingState),
+      requiresCurrencySetup: await this.computeRequiresCurrencySetup(user.id),
     };
   }
 }

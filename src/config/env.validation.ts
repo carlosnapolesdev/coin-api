@@ -41,6 +41,18 @@ export const envValidationSchema = Joi.object({
     otherwise: Joi.string().allow('').default(''),
   }),
 
+  // Needed to verify Google ID tokens (audience) and to render the sign-in
+  // button on the frontend. Mandatory in production; optional in dev/test so
+  // the app boots without Google configured.
+  GOOGLE_CLIENT_ID: Joi.string().when('NODE_ENV', {
+    is: 'production',
+    then: Joi.string().min(1).required().messages({
+      'any.required': 'GOOGLE_CLIENT_ID is required in production',
+      'string.empty': 'GOOGLE_CLIENT_ID is required in production',
+    }),
+    otherwise: Joi.string().allow('').default(''),
+  }),
+
   // Remitente de los correos. En producción no se acepta el default de
   // desarrollo para forzar un dominio verificado en Resend.
   MAIL_FROM: Joi.string().when('NODE_ENV', {

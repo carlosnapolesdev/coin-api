@@ -23,6 +23,7 @@ model User {
   username      String?         @unique(map: "uk_users_username") @db.VarChar(50)
   email         String?         @unique(map: "uk_users_email") @db.VarChar(150)
   passwordHash  String?         @map("password_hash") @db.VarChar(255)
+  googleId      String?         @unique(map: "uk_users_google_id") @map("google_id") @db.VarChar(255)
   emailVerifiedAt      DateTime? @map("email_verified_at") @db.Timestamptz(6)
   credentialsChangedAt DateTime? @map("credentials_changed_at") @db.Timestamptz(6)
   fullName      String?         @map("full_name") @db.VarChar(100)

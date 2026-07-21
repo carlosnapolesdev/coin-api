@@ -8,6 +8,10 @@ import { CurrenciesModule } from '../currencies/currencies.module';
 import { MailModule } from '../mail/mail.module';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
+import {
+  GoogleTokenVerifier,
+  GoogleTokenVerifierImpl,
+} from './google/google-token-verifier';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { JwtStrategy } from './strategies/jwt.strategy';
 
@@ -31,6 +35,10 @@ import { JwtStrategy } from './strategies/jwt.strategy';
   providers: [
     AuthService,
     JwtStrategy,
+    {
+      provide: GoogleTokenVerifier,
+      useClass: GoogleTokenVerifierImpl,
+    },
     {
       provide: APP_GUARD,
       useClass: JwtAuthGuard,

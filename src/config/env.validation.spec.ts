@@ -30,6 +30,7 @@ describe('envValidationSchema — CORS_ORIGIN', () => {
         CORS_ORIGIN: 'https://app.example.com,https://other.example.com',
         APP_URL: 'https://app.example.com',
         MAIL_FROM: 'Crecik <no-reply@crecik.com>',
+        GOOGLE_CLIENT_ID: 'test-client-id.apps.googleusercontent.com',
       },
       { abortEarly: false },
     );
@@ -51,6 +52,7 @@ describe('envValidationSchema — APP_URL', () => {
     NODE_ENV: 'production',
     CORS_ORIGIN: 'https://app.example.com',
     MAIL_FROM: 'Crecik <no-reply@crecik.com>',
+    GOOGLE_CLIENT_ID: 'test-client-id.apps.googleusercontent.com',
   };
 
   it('fails in production when APP_URL is missing', () => {
@@ -99,6 +101,7 @@ describe('envValidationSchema — MAIL_FROM', () => {
     NODE_ENV: 'production',
     CORS_ORIGIN: 'https://app.example.com',
     APP_URL: 'https://crecik.com',
+    GOOGLE_CLIENT_ID: 'test-client-id.apps.googleusercontent.com',
   };
 
   it('fails in production when MAIL_FROM is missing', () => {

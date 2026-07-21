@@ -18,7 +18,7 @@ import type {
 } from './dto/auth-response.dto';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
-import { ResendVerificationDto, VerifyEmailDto } from './dto';
+import { GoogleLoginDto, ResendVerificationDto, VerifyEmailDto } from './dto';
 import type { AuthenticatedUser } from './strategies/jwt.strategy';
 
 @Controller('auth')
@@ -43,8 +43,17 @@ export class AuthController {
     return this.authService.login(dto);
   }
 
+  @Post('google')
+  @Public()
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(ThrottlerGuard)
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
+  async google(@Body() dto: GoogleLoginDto): Promise<AuthResponseDto> {
+    return this.authService.loginWithGoogle(dto);
+  }
+
   @Get('me')
-  me(@CurrentUser() user: AuthenticatedUser): UserProfileDto {
+  me(@CurrentUser() user: AuthenticatedUser): Promise<UserProfileDto> {
     return this.authService.getProfile(user);
   }
 
@@ -82,5 +91,11 @@ export class AuthController {
   @Throttle({ default: { limit: 3, ttl: 60000 } })
   async resendVerification(@Body() dto: ResendVerificationDto): Promise<void> {
     return this.authService.resendVerification(dto);
+  }
+
+  @Get('google/config')
+  @Public()
+  googleConfig(): { clientId: string } {
+    return this.authService.getGoogleConfig();
   }
 }

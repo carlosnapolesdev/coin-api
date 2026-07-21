@@ -8,6 +8,7 @@ import { CategoriesService } from '../categories/categories.service';
 import { CurrenciesService } from '../currencies/currencies.service';
 import { MailService } from '../mail/mail.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { GoogleTokenVerifier } from './google/google-token-verifier';
 import { AuthService } from './auth.service';
 
 describe('AuthService', () => {
@@ -17,6 +18,7 @@ describe('AuthService', () => {
     user: {
       findFirst: jest.fn(),
       update: jest.fn(),
+      create: jest.fn(),
     },
     passwordResetToken: {
       create: jest.fn(),
@@ -31,6 +33,9 @@ describe('AuthService', () => {
       updateMany: jest.fn(),
       count: jest.fn(),
     },
+    userCurrency: {
+      count: jest.fn(),
+    },
     $transaction: jest.fn(),
   };
   const mockMail = {
@@ -41,6 +46,7 @@ describe('AuthService', () => {
   const mockJwt = { sign: jest.fn() };
   const mockCurrencies = { assignCurrenciesToUser: jest.fn() };
   const mockCategories = { assignDefaultCategoriesToUser: jest.fn() };
+  const mockVerifier = { verify: jest.fn() };
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -52,6 +58,7 @@ describe('AuthService', () => {
         { provide: MailService, useValue: mockMail },
         { provide: CurrenciesService, useValue: mockCurrencies },
         { provide: CategoriesService, useValue: mockCategories },
+        { provide: GoogleTokenVerifier, useValue: mockVerifier },
       ],
     }).compile();
 
@@ -60,17 +67,18 @@ describe('AuthService', () => {
   });
 
   describe('getProfile', () => {
-    it('returns default onboarding state when none is stored', () => {
-      expect(
-        service.getProfile({
-          id: 1,
-          email: 'user@test.com',
-          fullName: 'Test User',
-          username: 'test-user',
-          language: 'en',
-          onboardingState: null,
-        }),
-      ).toEqual({
+    it('returns default onboarding state when none is stored', async () => {
+      mockPrisma.userCurrency.count.mockResolvedValue(1);
+      const profile = await service.getProfile({
+        id: 1,
+        email: 'user@test.com',
+        fullName: 'Test User',
+        username: 'test-user',
+        language: 'en',
+        onboardingState: null,
+      });
+
+      expect(profile).toEqual({
         id: 1,
         fullName: 'Test User',
         email: 'user@test.com',
@@ -83,10 +91,12 @@ describe('AuthService', () => {
           reportsVisited: false,
           tourVersion: 0,
         },
+        requiresCurrencySetup: false,
       });
     });
 
-    it('returns the stored onboarding state', () => {
+    it('returns the stored onboarding state', async () => {
+      mockPrisma.userCurrency.count.mockResolvedValue(1);
       const onboardingState = {
         coachSeen: ['dashboard'],
         checklistDismissed: true,
@@ -95,24 +105,25 @@ describe('AuthService', () => {
         tourVersion: 2,
       };
 
-      expect(
-        service.getProfile({
-          id: 1,
-          email: 'user@test.com',
-          fullName: 'Test User',
-          username: 'test-user',
-          language: 'en',
-          onboardingState,
-        }),
-      ).toEqual(
+      const profile = await service.getProfile({
+        id: 1,
+        email: 'user@test.com',
+        fullName: 'Test User',
+        username: 'test-user',
+        language: 'en',
+        onboardingState,
+      });
+
+      expect(profile).toEqual(
         expect.objectContaining({
           onboardingState,
         }),
       );
     });
 
-    it('uses defaults for malformed onboarding field types', () => {
-      const result = service.getProfile({
+    it('uses defaults for malformed onboarding field types', async () => {
+      mockPrisma.userCurrency.count.mockResolvedValue(1);
+      const result = await service.getProfile({
         id: 1,
         email: 'user@test.com',
         fullName: 'Test User',
@@ -138,8 +149,9 @@ describe('AuthService', () => {
 
     it.each([-1, 1.5])(
       'uses the default for invalid tourVersion %s',
-      (tourVersion) => {
-        const result = service.getProfile({
+      async (tourVersion) => {
+        mockPrisma.userCurrency.count.mockResolvedValue(1);
+        const result = await service.getProfile({
           id: 1,
           email: 'user@test.com',
           fullName: 'Test User',
@@ -151,6 +163,25 @@ describe('AuthService', () => {
         expect(result.onboardingState.tourVersion).toBe(0);
       },
     );
+  });
+
+  describe('computeRequiresCurrencySetup', () => {
+    it('is true when there is no active base currency', async () => {
+      mockPrisma.userCurrency.count.mockResolvedValue(0);
+      await expect(service.computeRequiresCurrencySetup(1n)).resolves.toBe(
+        true,
+      );
+      expect(mockPrisma.userCurrency.count).toHaveBeenCalledWith({
+        where: { userId: 1n, isActive: true, isBase: true },
+      });
+    });
+
+    it('is false when an active base currency exists', async () => {
+      mockPrisma.userCurrency.count.mockResolvedValue(1);
+      await expect(service.computeRequiresCurrencySetup(1n)).resolves.toBe(
+        false,
+      );
+    });
   });
 
   describe('login', () => {
@@ -467,6 +498,147 @@ describe('AuthService', () => {
         service.resendVerification({ email: 'user@test.com' }),
       ).resolves.toBeUndefined();
       expect(mockMail.sendEmailVerification).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('getGoogleConfig', () => {
+    it('returns the configured Google client id', () => {
+      mockConfig.get.mockReturnValue('client-123.apps.googleusercontent.com');
+      expect(service.getGoogleConfig()).toEqual({
+        clientId: 'client-123.apps.googleusercontent.com',
+      });
+      expect(mockConfig.get).toHaveBeenCalledWith('GOOGLE_CLIENT_ID');
+    });
+
+    it('returns an empty string when unset', () => {
+      mockConfig.get.mockReturnValue(undefined);
+      expect(service.getGoogleConfig()).toEqual({ clientId: '' });
+    });
+  });
+
+  describe('loginWithGoogle', () => {
+    const identity = {
+      sub: 'g-1',
+      email: 'ada@b.com',
+      emailVerified: true,
+      name: 'Ada',
+    };
+
+    beforeEach(() => {
+      mockVerifier.verify.mockResolvedValue(identity);
+      mockJwt.sign.mockReturnValue('signed');
+      mockConfig.get.mockReturnValue(3600000);
+      mockPrisma.$transaction.mockImplementation(
+        (cb: (tx: typeof mockPrisma) => Promise<unknown>) => cb(mockPrisma),
+      );
+    });
+
+    it('logs in an existing googleId user', async () => {
+      const user = {
+        id: 1n,
+        email: 'ada@b.com',
+        fullName: 'Ada',
+        username: null,
+        language: 'en',
+        googleId: 'g-1',
+        isActive: true,
+      };
+      mockPrisma.user.findFirst.mockResolvedValueOnce(user);
+      mockPrisma.userCurrency.count.mockResolvedValue(1);
+
+      const res = await service.loginWithGoogle({ idToken: 'tok' });
+
+      expect(res.user.requiresCurrencySetup).toBe(false);
+      expect(res.token).toBe('signed');
+      expect(mockPrisma.user.create).not.toHaveBeenCalled();
+    });
+
+    it('links googleId to an existing verified-email account', async () => {
+      mockPrisma.user.findFirst
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce({
+          id: 2n,
+          email: 'ada@b.com',
+          googleId: null,
+          fullName: 'Ada',
+          username: null,
+          language: 'en',
+          isActive: true,
+        });
+      mockPrisma.user.update.mockResolvedValue({
+        id: 2n,
+        email: 'ada@b.com',
+        googleId: 'g-1',
+        fullName: 'Ada',
+        username: null,
+        language: 'en',
+        isActive: true,
+      });
+      mockPrisma.userCurrency.count.mockResolvedValue(1);
+
+      await service.loginWithGoogle({ idToken: 'tok' });
+
+      expect(mockPrisma.user.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 2n },
+          data: expect.objectContaining({ googleId: 'g-1' }),
+        }),
+      );
+      expect(mockPrisma.user.create).not.toHaveBeenCalled();
+    });
+
+    it('refuses to link when Google email is unverified', async () => {
+      mockVerifier.verify.mockResolvedValue({
+        ...identity,
+        emailVerified: false,
+      });
+      mockPrisma.user.findFirst
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce({ id: 2n, email: 'ada@b.com', googleId: null });
+
+      await expect(
+        service.loginWithGoogle({ idToken: 'tok' }),
+      ).rejects.toMatchObject({
+        response: { code: 'GOOGLE_EMAIL_UNVERIFIED' },
+      });
+      expect(mockPrisma.user.update).not.toHaveBeenCalled();
+    });
+
+    it('registers a new account with all categories and no currency', async () => {
+      mockPrisma.user.findFirst
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(null);
+      mockPrisma.user.create.mockResolvedValue({
+        id: 3n,
+        email: 'ada@b.com',
+        googleId: 'g-1',
+        fullName: 'Ada',
+        username: null,
+        language: 'en',
+        isActive: true,
+      });
+      mockPrisma.userCurrency.count.mockResolvedValue(0);
+
+      const res = await service.loginWithGoogle({ idToken: 'tok' });
+
+      expect(mockPrisma.user.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            googleId: 'g-1',
+            email: 'ada@b.com',
+            passwordHash: null,
+          }),
+        }),
+      );
+      expect(mockCategories.assignDefaultCategoriesToUser).toHaveBeenCalledWith(
+        3n,
+        'en',
+        undefined,
+        mockPrisma,
+      );
+      expect(mockCurrencies.assignCurrenciesToUser).not.toHaveBeenCalled();
+      expect(mockMail.sendEmailVerification).not.toHaveBeenCalled();
+      expect(res.user.requiresCurrencySetup).toBe(true);
     });
   });
 });
