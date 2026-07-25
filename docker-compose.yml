@@ -7,8 +7,13 @@ services:
       NODE_ENV: production
       # `postgres` resolves to the host stack's postgres container on the
       # external `backend` network; the `crecik` database must exist there.
-      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/crecik
-      JWT_SECRET: ${JWT_SECRET}
+      # Without the `:?` an absent password interpolates as empty and yields a
+      # URL Joi happily accepts, so the failure surfaces as a connection error
+      # at runtime instead of at `compose up`.
+      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required in production}@postgres:5432/crecik
+      # Same reasoning: empty is not a valid secret, and Joi rejecting it later
+      # only turns the mistake into a restart loop.
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required in production}
       JWT_EXPIRATION_MS: ${JWT_EXPIRATION_MS:-3600000}
       JWT_REMEMBER_ME_EXPIRATION_MS: ${JWT_REMEMBER_ME_EXPIRATION_MS:-604800000}
       JWT_ISSUER: ${JWT_ISSUER:-crecik}

@@ -35,10 +35,11 @@ lerna-debug.log*
 !.vscode/launch.json
 !.vscode/extensions.json
 
-# dotenv environment variable files — only the example template is tracked
+# dotenv environment variable files — only the example templates are tracked
 .env
 .env.*
 !.env.example
+!.env.production.example
 
 # temp directory
 .temp
