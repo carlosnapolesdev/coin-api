@@ -26,6 +26,11 @@
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./test/jest-e2e.json --runInBand --forceExit",
     "seed": "ts-node --project tsconfig.cli.json -r tsconfig-paths/register src/console.ts seed",
+    "migrate:dev": "prisma migrate dev",
+    "migrate:deploy": "prisma migrate deploy",
+    "migrate:status": "prisma migrate status",
+    "migrate:reset": "prisma migrate reset",
+    "migrate:studio": "prisma studio",
     "digest:send": "ts-node --project tsconfig.cli.json -r tsconfig-paths/register scripts/send-digest.ts"
   },
   "dependencies": {
