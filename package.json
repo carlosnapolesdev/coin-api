@@ -10,7 +10,7 @@
     "url": "git+https://github.com/carlosnapolesdev/coin-api.git"
   },
   "engines": {
-    "node": ">=22.15.0"
+    "node": ">=26"
   },
   "scripts": {
     "build": "nest build",
